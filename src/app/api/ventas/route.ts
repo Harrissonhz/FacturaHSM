@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { registrarVenta } from "@/services/ventas.service";
 import { RPC_ERROR_MAP } from "@/lib/result";
+import type { RegistrarVentaInput } from "@/lib/validation/venta.schema";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -15,8 +16,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = await registrarVenta(body as any);
+  const result = await registrarVenta(body as RegistrarVentaInput);
 
   if (!result.ok) {
     const status =

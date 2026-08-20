@@ -1,6 +1,6 @@
 // Route Handler: POST /api/cartera/:cuentaId/abonos
 import { NextResponse } from "next/server";
-import { registrarAbono } from "@/services/cartera.service";
+import { registrarAbono, type RegistrarAbonoInput } from "@/services/cartera.service";
 import { RPC_ERROR_MAP } from "@/lib/result";
 
 export async function POST(
@@ -15,10 +15,9 @@ export async function POST(
   }
 
   const result = await registrarAbono({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...(body as any),
+    ...(body as Partial<RegistrarAbonoInput>),
     cuenta_id: params.cuentaId,
-  });
+  } as RegistrarAbonoInput);
 
   if (!result.ok) {
     const status =
