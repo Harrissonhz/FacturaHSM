@@ -1,13 +1,12 @@
 "use client";
 
 // ---------------------------------------------------------------------
-// POS de venta (Client Component) - Opción A completa.
-// - Selector de cliente (con busqueda) + "Nuevo cliente" (bottom sheet).
-// - Buscador de productos + carrito multi-producto (agregar/quitar/cantidad).
-// - Envia todos los items a POST /api/ventas (sp_registrar_venta).
+// POS de venta (Client Component) - con enlace a Factura PDF.
+// - Selector de cliente (busqueda) + "Nuevo cliente" (bottom sheet).
+// - Buscador de productos + carrito multi-producto.
+// - Tras registrar, ofrece VER/IMPRIMIR la factura (/factura/[ventaId]).
 // ---------------------------------------------------------------------
 import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
 import EstadoBadge from "@/components/EstadoBadge";
 
@@ -17,18 +16,18 @@ type Item = {
   calidad_id: string;
   sku: string;
   calidad: string;
-  cantidad: number; // stock disponible
+  cantidad: number;
   precio: number;
 };
 type LineaCarrito = {
-  key: string; // variante_id + calidad_id
+  key: string;
   variante_id: string;
   calidad_id: string;
   sku: string;
   calidad: string;
   precio: number;
   stock: number;
-  cantidad: number; // cantidad vendida
+  cantidad: number;
 };
 
 type Props = {
@@ -38,32 +37,23 @@ type Props = {
 };
 
 export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) {
-  const router = useRouter();
-
-  // ---- Clientes ----
   const [clientes, setClientes] = useState<Cliente[]>(clientesIniciales);
   const [clienteId, setClienteId] = useState<string>(clientesIniciales[0]?.id ?? "");
   const [buscarCliente, setBuscarCliente] = useState("");
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
 
-  // ---- Productos / carrito ----
   const [buscarProd, setBuscarProd] = useState("");
   const [carrito, setCarrito] = useState<LineaCarrito[]>([]);
 
-  // ---- Estado de envio ----
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [resultado, setResultado] = useState<any>(null);
 
   const clientesFiltrados = useMemo(
-    () =>
-      clientes.filter((c) =>
-        c.nombre.toLowerCase().includes(buscarCliente.toLowerCase())
-      ),
+    () => clientes.filter((c) => c.nombre.toLowerCase().includes(buscarCliente.toLowerCase())),
     [clientes, buscarCliente]
   );
-
   const itemsFiltrados = useMemo(
     () =>
       items.filter((it) =>
@@ -71,25 +61,19 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
       ),
     [items, buscarProd]
   );
-
   const total = useMemo(
     () => carrito.reduce((s, l) => s + l.precio * l.cantidad, 0),
     [carrito]
   );
-
   const clienteSel = clientes.find((c) => c.id === clienteId);
 
-  // ---- Carrito helpers ----
   function agregarAlCarrito(it: Item) {
     const key = it.variante_id + it.calidad_id;
     setCarrito((prev) => {
       const existe = prev.find((l) => l.key === key);
       if (existe) {
-        // aumenta si hay stock
         return prev.map((l) =>
-          l.key === key && l.cantidad < l.stock
-            ? { ...l, cantidad: l.cantidad + 1 }
-            : l
+          l.key === key && l.cantidad < l.stock ? { ...l, cantidad: l.cantidad + 1 } : l
         );
       }
       return [
@@ -107,7 +91,6 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
       ];
     });
   }
-
   function cambiarCantidad(key: string, delta: number) {
     setCarrito((prev) =>
       prev
@@ -119,21 +102,13 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
         .filter((l) => l.cantidad > 0)
     );
   }
-
   function quitar(key: string) {
     setCarrito((prev) => prev.filter((l) => l.key !== key));
   }
 
-  // ---- Registrar venta ----
   async function registrar() {
-    if (!clienteId) {
-      setError("Selecciona un cliente.");
-      return;
-    }
-    if (carrito.length === 0) {
-      setError("Agrega al menos un producto.");
-      return;
-    }
+    if (!clienteId) { setError("Selecciona un cliente."); return; }
+    if (carrito.length === 0) { setError("Agrega al menos un producto."); return; }
     setLoading(true);
     setError(null);
     setResultado(null);
@@ -169,7 +144,6 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
     }
   }
 
-  // ---- Crear cliente nuevo ----
   async function crearCliente(form: FormData) {
     const nombre = String(form.get("nombre") ?? "").trim();
     if (!nombre) return;
@@ -195,7 +169,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
     }
   }
 
-  // ---- Vista de exito ----
+  // ---- Vista de exito (con enlace a la factura) ----
   if (resultado) {
     return (
       <div className="alert alert-success" style={{ padding: "var(--space-5)" }}>
@@ -207,6 +181,9 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
           <li>Cuenta por cobrar: <strong>{resultado.cuenta_id ? "creada" : "-"}</strong></li>
         </ul>
         <div style={{ marginTop: "var(--space-4)", display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
+          <a className="btn btn-accent" href={`/factura/${resultado.venta_id}`}>
+            🧾 Ver factura
+          </a>
           <a className="btn btn-success" href="/cartera">Ver cartera</a>
           <button className="btn btn-secondary" onClick={() => setResultado(null)}>
             Nueva venta
@@ -218,15 +195,14 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
 
   return (
     <>
-      {/* ---- Cliente ---- */}
+      {/* Cliente */}
       <div className="card">
-        <div className="row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3 style={{ margin: 0 }}>Cliente</h3>
           <button className="btn btn-secondary btn-sm" onClick={() => setShowNuevoCliente(true)}>
             + Nuevo
           </button>
         </div>
-
         <div className="field" style={{ marginTop: "var(--space-3)", marginBottom: "var(--space-2)" }}>
           <input
             className="input"
@@ -235,22 +211,14 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
             onChange={(e) => setBuscarCliente(e.target.value)}
           />
         </div>
-
         {clientesFiltrados.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>
-            No hay clientes. Toca “+ Nuevo” para crear uno.
-          </p>
+          <p className="muted" style={{ margin: 0 }}>No hay clientes. Toca “+ Nuevo”.</p>
         ) : (
           <div className="field" style={{ margin: 0 }}>
-            <select
-              className="select"
-              value={clienteId}
-              onChange={(e) => setClienteId(e.target.value)}
-            >
+            <select className="select" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
               {clientesFiltrados.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.nombre}
-                  {c.municipio ? ` · ${c.municipio}` : ""}
+                  {c.nombre}{c.municipio ? ` · ${c.municipio}` : ""}
                 </option>
               ))}
             </select>
@@ -263,7 +231,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
         )}
       </div>
 
-      {/* ---- Productos disponibles ---- */}
+      {/* Productos */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Productos disponibles</h3>
         <div className="field" style={{ marginBottom: "var(--space-3)" }}>
@@ -274,7 +242,6 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
             onChange={(e) => setBuscarProd(e.target.value)}
           />
         </div>
-
         {itemsFiltrados.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>Sin productos que coincidan.</p>
         ) : (
@@ -309,13 +276,11 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
         )}
       </div>
 
-      {/* ---- Carrito ---- */}
+      {/* Carrito */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Carrito ({carrito.length})</h3>
         {carrito.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>
-            Aún no has agregado productos.
-          </p>
+          <p className="muted" style={{ margin: 0 }}>Aún no has agregado productos.</p>
         ) : (
           <div className="list-cards">
             {carrito.map((l) => (
@@ -323,62 +288,22 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
                 <div className="row">
                   <div>
                     <div className="title">{l.sku}</div>
-                    <div className="sub">
-                      {money(l.precio)} · <EstadoBadge estado={l.calidad} />
-                    </div>
+                    <div className="sub">{money(l.precio)} · <EstadoBadge estado={l.calidad} /></div>
                   </div>
                   <div className="amount">{money(l.precio * l.cantidad)}</div>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "var(--space-3)",
-                    marginTop: "var(--space-3)",
-                  }}
-                >
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    style={{ minWidth: 44, fontSize: "1.2rem" }}
-                    onClick={() => cambiarCantidad(l.key, -1)}
-                  >
-                    −
-                  </button>
-                  <span className="tabular" style={{ fontWeight: 700, minWidth: 28, textAlign: "center" }}>
-                    {l.cantidad}
-                  </span>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    style={{ minWidth: 44, fontSize: "1.2rem" }}
-                    onClick={() => cambiarCantidad(l.key, 1)}
-                    disabled={l.cantidad >= l.stock}
-                  >
-                    +
-                  </button>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginTop: "var(--space-3)" }}>
+                  <button className="btn btn-secondary btn-sm" style={{ minWidth: 44, fontSize: "1.2rem" }} onClick={() => cambiarCantidad(l.key, -1)}>−</button>
+                  <span className="tabular" style={{ fontWeight: 700, minWidth: 28, textAlign: "center" }}>{l.cantidad}</span>
+                  <button className="btn btn-secondary btn-sm" style={{ minWidth: 44, fontSize: "1.2rem" }} onClick={() => cambiarCantidad(l.key, 1)} disabled={l.cantidad >= l.stock}>+</button>
                   <span className="sub">/ {l.stock}</span>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    style={{ marginLeft: "auto" }}
-                    onClick={() => quitar(l.key)}
-                  >
-                    Quitar
-                  </button>
+                  <button className="btn btn-danger btn-sm" style={{ marginLeft: "auto" }} onClick={() => quitar(l.key)}>Quitar</button>
                 </div>
               </div>
             ))}
           </div>
         )}
-
-        <div
-          style={{
-            marginTop: "var(--space-4)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            borderTop: "1px solid var(--color-border)",
-            paddingTop: "var(--space-4)",
-          }}
-        >
+        <div style={{ marginTop: "var(--space-4)", display: "flex", justifyContent: "space-between", alignItems: "baseline", borderTop: "1px solid var(--color-border)", paddingTop: "var(--space-4)" }}>
           <span className="muted">Total (crédito 30 días)</span>
           <span className="amount amount-lg">{money(total)}</span>
         </div>
@@ -386,15 +311,11 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
 
       {error && <div className="alert alert-danger">{error}</div>}
 
-      <button
-        className="btn btn-success btn-full"
-        onClick={registrar}
-        disabled={loading || carrito.length === 0 || !clienteId}
-      >
+      <button className="btn btn-success btn-full" onClick={registrar} disabled={loading || carrito.length === 0 || !clienteId}>
         {loading ? "Registrando..." : `Registrar venta · ${money(total)}`}
       </button>
 
-      {/* ---- Bottom sheet: nuevo cliente ---- */}
+      {/* Bottom sheet: nuevo cliente */}
       {showNuevoCliente && (
         <div className="sheet-overlay" onClick={() => setShowNuevoCliente(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
@@ -418,16 +339,8 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
                 <input id="documento" name="documento" className="input" placeholder="Opcional" />
               </div>
               <div style={{ display: "flex", gap: "var(--space-3)", marginTop: "var(--space-2)" }}>
-                <button className="btn btn-success btn-full" type="submit">
-                  Guardar cliente
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  onClick={() => setShowNuevoCliente(false)}
-                >
-                  Cancelar
-                </button>
+                <button className="btn btn-success btn-full" type="submit">Guardar cliente</button>
+                <button className="btn btn-secondary" type="button" onClick={() => setShowNuevoCliente(false)}>Cancelar</button>
               </div>
             </form>
           </div>

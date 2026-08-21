@@ -1,0 +1,169 @@
+/* =====================================================================
+   Estilos de la Factura (vista imprimible / PDF)
+   ===================================================================== */
+
+.factura-wrap {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.factura-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* Documento de la factura */
+.factura-doc {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 32px;
+  color: #0f172a;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .06);
+}
+
+/* Encabezado */
+.factura-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 2px solid #1e3a5f;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+}
+.emisor-nombre {
+  font-size: 1.5rem;
+  margin: 0 0 8px;
+  color: #1e3a5f;
+}
+.emisor-datos {
+  font-size: .82rem;
+  color: #475569;
+  line-height: 1.5;
+}
+.factura-meta { text-align: right; min-width: 220px; }
+.factura-titulo {
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #64748b;
+}
+.factura-numero {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #1e3a5f;
+  margin-bottom: 8px;
+}
+.meta-table {
+  margin-left: auto;
+  font-size: .82rem;
+  border-collapse: collapse;
+}
+.meta-table td { padding: 2px 0; }
+.meta-table td:first-child { color: #64748b; padding-right: 12px; text-align: right; }
+.meta-table td:last-child { font-weight: 600; text-align: right; }
+
+/* Cliente */
+.factura-cliente { margin-bottom: 20px; }
+.factura-cliente h2 {
+  font-size: .8rem;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 6px;
+  margin: 0 0 10px;
+}
+.cliente-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 24px;
+  font-size: .88rem;
+}
+.cliente-grid span { color: #64748b; }
+
+/* Tabla de items */
+.factura-items {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .88rem;
+  margin-bottom: 16px;
+}
+.factura-items thead th {
+  background: #1e3a5f;
+  color: #fff;
+  text-align: left;
+  padding: 10px 12px;
+  font-size: .8rem;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.factura-items thead th.num { text-align: right; }
+.factura-items tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.factura-items tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.factura-items tbody tr:nth-child(even) { background: #f8fafc; }
+
+/* Totales */
+.factura-totales {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px;
+}
+.factura-totales table {
+  min-width: 260px;
+  border-collapse: collapse;
+  font-size: .9rem;
+}
+.factura-totales td { padding: 6px 12px; }
+.factura-totales td:first-child { color: #64748b; }
+.factura-totales td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.factura-totales .total-row td {
+  border-top: 2px solid #1e3a5f;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #1e3a5f;
+  padding-top: 10px;
+}
+
+/* Pie */
+.factura-pie {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 16px;
+  font-size: .8rem;
+  color: #64748b;
+  text-align: center;
+}
+
+/* Responsive movil */
+@media (max-width: 560px) {
+  .factura-doc { padding: 20px; }
+  .factura-header { flex-direction: column; }
+  .factura-meta { text-align: left; }
+  .meta-table { margin-left: 0; }
+  .cliente-grid { grid-template-columns: 1fr; }
+  .emisor-nombre { font-size: 1.25rem; }
+}
+
+/* =====================================================================
+   IMPRESION: al imprimir, solo se ve el documento (sin barras ni nav)
+   ===================================================================== */
+@media print {
+  .no-print { display: none !important; }
+  .app-header, .bottom-nav, .side-nav, .offline-banner { display: none !important; }
+  body { background: #fff !important; }
+  .factura-wrap { max-width: 100%; padding: 0; margin: 0; }
+  .factura-doc {
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+  }
+  .factura-items thead th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
