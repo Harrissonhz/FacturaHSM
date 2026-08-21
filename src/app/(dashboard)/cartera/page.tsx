@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------
-// Pantalla de Cartera (Server Component).
-// Lista las cuentas por cobrar con su saldo y estado, y permite
-// registrar abonos parciales (vía CarteraTabla / AbonoForm cliente).
+// Pantalla de Cartera (Server Component) - Fase 2.
+// Lista las cuentas por cobrar y delega en CarteraTabla (cliente) el
+// resumen, filtros, tarjetas y el bottom sheet de abonos.
 // ---------------------------------------------------------------------
 import { createClient } from "@/lib/supabase/server";
 import CarteraTabla from "./CarteraTabla";
@@ -48,25 +48,21 @@ export default async function CarteraPage() {
 
   return (
     <main>
-      <h1>Cartera / Cuentas por cobrar</h1>
-      <p className="muted">
-        Consulta el saldo de cada cuenta y registra abonos parciales. Al
-        llegar el saldo a cero, la cuenta pasa a PAGADA.
-      </p>
+      <h1>Cartera</h1>
+      <p className="muted">Consulta saldos y registra abonos parciales.</p>
 
       {error && (
-        <div className="card" style={{ borderColor: "#fecaca", background: "#fef2f2" }}>
-          <strong style={{ color: "#b91c1c" }}>Error al cargar la cartera:</strong>{" "}
-          {error.message}
+        <div className="alert alert-danger">
+          Error al cargar la cartera: {error.message}
         </div>
       )}
 
       {cuentas.length === 0 ? (
-        <div className="card">
-          <h3>No hay cuentas por cobrar</h3>
-          <p className="muted">
-            Registra una venta a credito desde <a href="/ventas">Ventas</a> para
-            generar una cuenta por cobrar.
+        <div className="empty-state">
+          <span className="emoji">💰</span>
+          <p>
+            No hay cuentas por cobrar. Registra una venta a crédito desde{" "}
+            <a href="/ventas">Ventas</a>.
           </p>
         </div>
       ) : (

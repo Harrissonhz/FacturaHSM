@@ -1,52 +1,44 @@
 "use client";
 
 // ---------------------------------------------------------------------
-// Tabla de cartera + registro de abonos (Client Component).
-// Muestra las cuentas por cobrar y, al seleccionar una, permite
-// registrar un abono via POST /api/cartera/:cuentaId/abonos.
+// Cartera (Client Component) - Fase 2 rediseñado.
+// - Resumen (chips) de saldo total y # cuentas.
+// - Filtro por estado (segmento).
+// - Lista de tarjetas (mobile-first, sin scroll horizontal).
+// - Registro de abono en bottom sheet.
 // ---------------------------------------------------------------------
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { money, fecha } from "@/lib/format";
+import EstadoBadge from "@/components/EstadoBadge";
 import type { CuentaCxC } from "./page";
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    maximumFractionDigits: 0,
-  }).format(n);
-
-const badge = (estado: string) => {
-  const colores: Record<string, { bg: string; fg: string }> = {
-    PENDIENTE: { bg: "#fef9c3", fg: "#854d0e" },
-    PARCIAL: { bg: "#dbeafe", fg: "#1e40af" },
-    PAGADA: { bg: "#dcfce7", fg: "#166534" },
-    VENCIDA: { bg: "#fee2e2", fg: "#991b1b" },
-  };
-  const c = colores[estado] ?? { bg: "#e2e8f0", fg: "#334155" };
-  return (
-    <span
-      style={{
-        background: c.bg,
-        color: c.fg,
-        padding: "2px 10px",
-        borderRadius: 999,
-        fontSize: "0.8rem",
-        fontWeight: 700,
-      }}
-    >
-      {estado}
-    </span>
-  );
-};
+type Filtro = "TODAS" | "PENDIENTES" | "VENCIDAS";
 
 export default function CarteraTabla({ cuentas }: { cuentas: CuentaCxC[] }) {
   const router = useRouter();
+  const [filtro, setFiltro] = useState<Filtro>("TODAS");
   const [seleccion, setSeleccion] = useState<CuentaCxC | null>(null);
   const [monto, setMonto] = useState<number>(0);
   const [formaPago, setFormaPago] = useState("EFECTIVO");
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+
+  // Totales para los chips de resumen
+  const totalSaldo = useMemo(
+    () => cuentas.reduce((s, c) => s + c.saldo_pendiente, 0),
+    [cuentas]
+  );
+  const pendientes = useMemo(
+    () => cuentas.filter((c) => c.estado !== "PAGADA").length,
+    [cuentas]
+  );
+
+  const visibles = useMemo(() => {
+    if (filtro === "PENDIENTES") return cuentas.filter((c) => c.estado === "PENDIENTE" || c.estado === "PARCIAL");
+    if (filtro === "VENCIDAS") return cuentas.filter((c) => c.estado === "VENCIDA");
+    return cuentas;
+  }, [cuentas, filtro]);
 
   function abrirAbono(c: CuentaCxC) {
     setSeleccion(c);
@@ -70,10 +62,9 @@ export default function CarteraTabla({ cuentas }: { cuentas: CuentaCxC[] }) {
       } else {
         setMensaje({
           tipo: "ok",
-          texto: `Abono registrado. Nuevo saldo: ${fmt(json.data.saldo_pendiente)} · ${json.data.estado}`,
+          texto: `Abono registrado. Nuevo saldo: ${money(json.data.saldo_pendiente)} · ${json.data.estado}`,
         });
         setSeleccion(null);
-        // Recarga los datos del servidor para ver el saldo actualizado.
         router.refresh();
       }
     } catch (e) {
@@ -86,111 +77,142 @@ export default function CarteraTabla({ cuentas }: { cuentas: CuentaCxC[] }) {
   return (
     <>
       {mensaje && (
-        <div
-          className="card"
-          style={{
-            borderColor: mensaje.tipo === "ok" ? "#bbf7d0" : "#fecaca",
-            background: mensaje.tipo === "ok" ? "#f0fdf4" : "#fef2f2",
-          }}
-        >
-          <strong style={{ color: mensaje.tipo === "ok" ? "#166534" : "#b91c1c" }}>
-            {mensaje.tipo === "ok" ? "Exito: " : "Error: "}
-          </strong>
+        <div className={`alert ${mensaje.tipo === "ok" ? "alert-success" : "alert-danger"}`}>
           {mensaje.texto}
         </div>
       )}
 
-      <div className="card" style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "2px solid #e2e8f0" }}>
-              <th style={{ padding: "0.5rem" }}>Factura</th>
-              <th style={{ padding: "0.5rem" }}>Cliente</th>
-              <th style={{ padding: "0.5rem" }}>Vendedor</th>
-              <th style={{ padding: "0.5rem", textAlign: "right" }}>Valor</th>
-              <th style={{ padding: "0.5rem", textAlign: "right" }}>Abonado</th>
-              <th style={{ padding: "0.5rem", textAlign: "right" }}>Saldo</th>
-              <th style={{ padding: "0.5rem" }}>Estado</th>
-              <th style={{ padding: "0.5rem" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {cuentas.map((c) => (
-              <tr key={c.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                <td style={{ padding: "0.5rem" }}>{c.factura}</td>
-                <td style={{ padding: "0.5rem" }}>{c.cliente}</td>
-                <td style={{ padding: "0.5rem" }}>{c.vendedor}</td>
-                <td style={{ padding: "0.5rem", textAlign: "right" }}>{fmt(c.valor_original)}</td>
-                <td style={{ padding: "0.5rem", textAlign: "right" }}>{fmt(c.total_abonado)}</td>
-                <td style={{ padding: "0.5rem", textAlign: "right", fontWeight: 700 }}>
-                  {fmt(c.saldo_pendiente)}
-                </td>
-                <td style={{ padding: "0.5rem" }}>{badge(c.estado)}</td>
-                <td style={{ padding: "0.5rem" }}>
-                  {c.estado !== "PAGADA" && (
-                    <button
-                      className="btn"
-                      style={{ padding: "0.35rem 0.75rem", fontSize: "0.85rem" }}
-                      onClick={() => abrirAbono(c)}
-                    >
-                      Abonar
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Resumen */}
+      <div className="summary-row">
+        <div className="summary-chip">
+          <div className="label">Saldo total por cobrar</div>
+          <div className="value">{money(totalSaldo)}</div>
+        </div>
+        <div className="summary-chip">
+          <div className="label">Cuentas pendientes</div>
+          <div className="value">{pendientes}</div>
+        </div>
       </div>
 
+      {/* Filtros */}
+      <div className="segment" role="tablist">
+        <button className={filtro === "TODAS" ? "active" : ""} onClick={() => setFiltro("TODAS")}>
+          Todas
+        </button>
+        <button className={filtro === "PENDIENTES" ? "active" : ""} onClick={() => setFiltro("PENDIENTES")}>
+          Pendientes
+        </button>
+        <button className={filtro === "VENCIDAS" ? "active" : ""} onClick={() => setFiltro("VENCIDAS")}>
+          Vencidas
+        </button>
+      </div>
+
+      {/* Lista de tarjetas */}
+      {visibles.length === 0 ? (
+        <div className="empty-state">
+          <span className="emoji">💰</span>
+          No hay cuentas en esta categoría.
+        </div>
+      ) : (
+        <div className="list-cards">
+          {visibles.map((c) => (
+            <div className="list-item" key={c.id}>
+              <div className="row">
+                <div>
+                  <div className="title">{c.cliente}</div>
+                  <div className="sub">Factura {c.factura} · {fecha(c.fecha_venta)}</div>
+                </div>
+                <EstadoBadge estado={c.estado} />
+              </div>
+
+              <div className="row" style={{ marginTop: "var(--space-3)" }}>
+                <div className="sub">
+                  Abonado: {money(c.total_abonado)} / {money(c.valor_original)}
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div className="sub">Saldo</div>
+                  <div className="amount amount-lg">{money(c.saldo_pendiente)}</div>
+                </div>
+              </div>
+
+              {c.estado !== "PAGADA" && (
+                <button
+                  className="btn btn-success btn-full btn-sm"
+                  style={{ marginTop: "var(--space-3)" }}
+                  onClick={() => abrirAbono(c)}
+                >
+                  Registrar abono
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Bottom sheet de abono */}
       {seleccion && (
-        <div className="card">
-          <h3>Registrar abono · Factura {seleccion.factura}</h3>
-          <p className="muted">
-            Cliente: {seleccion.cliente} · Saldo pendiente:{" "}
-            <strong>{fmt(seleccion.saldo_pendiente)}</strong>
-          </p>
+        <div className="sheet-overlay" onClick={() => !loading && setSeleccion(null)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="handle" />
+            <h3 style={{ marginTop: 0 }}>Registrar abono</h3>
+            <p className="muted" style={{ marginTop: 0 }}>
+              {seleccion.cliente} · Factura {seleccion.factura}
+            </p>
 
-          <label style={{ display: "block", margin: "0.5rem 0 0.35rem", fontWeight: 600 }}>
-            Monto del abono (max {fmt(seleccion.saldo_pendiente)})
-          </label>
-          <input
-            type="number"
-            min={1}
-            max={seleccion.saldo_pendiente}
-            value={monto}
-            onChange={(e) =>
-              setMonto(Math.max(0, Math.min(seleccion.saldo_pendiente, Number(e.target.value))))
-            }
-            style={{ padding: "0.5rem", borderRadius: 8, border: "1px solid #cbd5e1", width: "180px" }}
-          />
+            <div className="list-item" style={{ boxShadow: "none", marginBottom: "var(--space-4)" }}>
+              <div className="row">
+                <span className="sub">Saldo pendiente</span>
+                <span className="amount amount-lg">{money(seleccion.saldo_pendiente)}</span>
+              </div>
+            </div>
 
-          <label style={{ display: "block", margin: "0.75rem 0 0.35rem", fontWeight: 600 }}>
-            Forma de pago
-          </label>
-          <select
-            value={formaPago}
-            onChange={(e) => setFormaPago(e.target.value)}
-            style={{ padding: "0.5rem", borderRadius: 8, border: "1px solid #cbd5e1", width: "220px" }}
-          >
-            <option value="EFECTIVO">Efectivo</option>
-            <option value="CONSIGNACION">Consignacion</option>
-            <option value="TRANSFERENCIA">Transferencia</option>
-            <option value="OTRO">Otro</option>
-          </select>
+            <div className="field">
+              <label htmlFor="monto">Monto del abono</label>
+              <input
+                id="monto"
+                className="input tabular"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={seleccion.saldo_pendiente}
+                value={monto}
+                onChange={(e) =>
+                  setMonto(Math.max(0, Math.min(seleccion.saldo_pendiente, Number(e.target.value))))
+                }
+              />
+            </div>
 
-          <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem" }}>
-            <button className="btn" onClick={registrarAbono} disabled={loading || monto <= 0}>
-              {loading ? "Registrando..." : "Confirmar abono"}
-            </button>
-            <button
-              className="btn btn-ghost"
-              style={{ background: "#e2e8f0", color: "#334155" }}
-              onClick={() => setSeleccion(null)}
-              disabled={loading}
-            >
-              Cancelar
-            </button>
+            <div className="field">
+              <label htmlFor="forma">Forma de pago</label>
+              <select
+                id="forma"
+                className="select"
+                value={formaPago}
+                onChange={(e) => setFormaPago(e.target.value)}
+              >
+                <option value="EFECTIVO">Efectivo</option>
+                <option value="CONSIGNACION">Consignación</option>
+                <option value="TRANSFERENCIA">Transferencia</option>
+                <option value="OTRO">Otro</option>
+              </select>
+            </div>
+
+            <div style={{ display: "flex", gap: "var(--space-3)", marginTop: "var(--space-4)" }}>
+              <button
+                className="btn btn-success btn-full"
+                onClick={registrarAbono}
+                disabled={loading || monto <= 0}
+              >
+                {loading ? "Registrando..." : `Confirmar ${money(monto)}`}
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setSeleccion(null)}
+                disabled={loading}
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}
