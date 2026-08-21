@@ -9,7 +9,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <button className="btn btn-full" type="submit" disabled={pending}>
-      {pending ? "Ingresando..." : "Iniciar sesion"}
+      {pending ? "Ingresando..." : "Iniciar sesión"}
     </button>
   );
 }
@@ -20,33 +20,39 @@ export default function LoginPage() {
   return (
     <main className="login-wrap">
       <div className="login-card">
+        <div className="logo">HSM</div>
         <h1>FacturacionHSM</h1>
-        <p className="muted">Inicia sesion para continuar</p>
+        <p className="muted">Inicia sesión para continuar</p>
 
-        <form action={formAction} className="login-form">
-          <label>
-            Correo
+        <form action={formAction}>
+          <div className="field">
+            <label htmlFor="email">Correo</label>
             <input
+              id="email"
+              className="input"
               type="email"
               name="email"
               autoComplete="email"
+              inputMode="email"
               placeholder="tucorreo@grupo-exito.com"
               required
             />
-          </label>
+          </div>
 
-          <label>
-            Contrasena
+          <div className="field">
+            <label htmlFor="password">Contraseña</label>
             <input
+              id="password"
+              className="input"
               type="password"
               name="password"
               autoComplete="current-password"
-              placeholder="********"
+              placeholder="••••••••"
               required
             />
-          </label>
+          </div>
 
-          {state.error && <p className="error">{state.error}</p>}
+          {state.error && <div className="alert alert-danger">{state.error}</div>}
 
           <SubmitButton />
         </form>
