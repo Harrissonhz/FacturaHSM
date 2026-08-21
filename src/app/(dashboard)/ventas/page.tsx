@@ -1,32 +1,59 @@
 // ---------------------------------------------------------------------
-// Pantalla de Ventas (Server Component) - Fase 2.
-// Carga vendedor, cliente e inventario disponible (LISTO) y los pasa
-// al formulario cliente rediseñado.
+// Pantalla de Ventas (Server Component) - POS completo.
+// Resuelve el vendedor segun el usuario logueado (o el primero si es admin),
+// carga TODOS sus clientes y su inventario disponible (LISTO), y los pasa
+// al formulario POS (selector de cliente + carrito multi-producto).
 // ---------------------------------------------------------------------
 import { createClient } from "@/lib/supabase/server";
-import VentaForm from "./VentaForm";
+import { getPerfil } from "@/lib/auth/session";
+import VentaPOS from "./VentaPOS";
 
 export const dynamic = "force-dynamic";
 
 export default async function VentasPage() {
   const supabase = createClient();
+  const perfil = await getPerfil();
 
-  const { data: vendedor } = await supabase
-    .from("vendedores")
-    .select("id, nombre, municipio, ubicacion_id")
-    .not("ubicacion_id", "is", null)
-    .limit(1)
-    .single();
+  // 1. Resolver vendedor: si el usuario ES vendedor, usa su vendedor_id.
+  //    Si es admin (sin vendedor_id), toma el primer vendedor con ubicacion.
+  let vendedor:
+    | { id: string; nombre: string; municipio: string | null; ubicacion_id: string }
+    | null = null;
 
-  const { data: cliente } = vendedor
-    ? await supabase
-        .from("clientes")
-        .select("id, nombre, municipio")
-        .eq("vendedor_id", vendedor.id)
-        .limit(1)
-        .single()
-    : { data: null };
+  if (perfil?.vendedor_id) {
+    const { data } = await supabase
+      .from("vendedores")
+      .select("id, nombre, municipio, ubicacion_id")
+      .eq("id", perfil.vendedor_id)
+      .single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vendedor = (data as any) ?? null;
+  }
+  if (!vendedor) {
+    const { data } = await supabase
+      .from("vendedores")
+      .select("id, nombre, municipio, ubicacion_id")
+      .not("ubicacion_id", "is", null)
+      .limit(1)
+      .single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vendedor = (data as any) ?? null;
+  }
 
+  // 2. Clientes del vendedor
+  type Cliente = { id: string; nombre: string; municipio: string | null };
+  let clientes: Cliente[] = [];
+  if (vendedor) {
+    const { data } = await supabase
+      .from("clientes")
+      .select("id, nombre, municipio")
+      .eq("vendedor_id", vendedor.id)
+      .eq("activo", true)
+      .order("nombre");
+    clientes = (data ?? []) as Cliente[];
+  }
+
+  // 3. Inventario disponible (LISTO) del vendedor + precios por calidad
   type ItemDisponible = {
     variante_id: string;
     calidad_id: string;
@@ -36,7 +63,6 @@ export default async function VentasPage() {
     precio: number;
   };
   let items: ItemDisponible[] = [];
-
   if (vendedor?.ubicacion_id) {
     const { data: inv } = await supabase
       .from("inventario")
@@ -71,26 +97,23 @@ export default async function VentasPage() {
     });
   }
 
-  const listo = vendedor && cliente && items.length > 0;
-
   return (
     <main>
       <h1>Registrar venta</h1>
       <p className="muted">Vende a crédito, genera factura y cuenta por cobrar.</p>
 
-      {!listo ? (
+      {!vendedor ? (
         <div className="empty-state">
           <span className="emoji">🛒</span>
           <p>
-            No se encontró un vendedor, cliente o inventario disponible.
-            <br />
-            Ejecuta el script <code>datos_prueba.sql</code> en Supabase y recarga.
+            No hay un vendedor con inventario asignado. Ejecuta{" "}
+            <code>datos_prueba.sql</code> o asigna inventario a un vendedor.
           </p>
         </div>
       ) : (
-        <VentaForm
+        <VentaPOS
           vendedor={{ id: vendedor.id, nombre: vendedor.nombre, municipio: vendedor.municipio }}
-          cliente={{ id: cliente.id, nombre: cliente.nombre }}
+          clientesIniciales={clientes}
           items={items}
         />
       )}
