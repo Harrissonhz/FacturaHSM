@@ -4,8 +4,7 @@
 // Navegacion de la app:
 //  - Movil: bottom navigation fija (alcanzable con el pulgar).
 //  - Escritorio (>=1024px): sidebar lateral.
-// Marca el destino activo segun la ruta actual.
-// "Catálogos" solo se muestra a admin.
+// "Compras" y "Catálogos" solo para admin.
 // ---------------------------------------------------------------------
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -17,6 +16,7 @@ const ITEMS: Item[] = [
   { href: "/ventas", label: "Vender", icon: "🛒" },
   { href: "/inventario", label: "Inventario", icon: "📦" },
   { href: "/cartera", label: "Cartera", icon: "💰" },
+  { href: "/compras", label: "Compras", icon: "🧾", roles: ["admin"] },
   { href: "/catalogos", label: "Catálogos", icon: "⚙️", roles: ["admin"] },
 ];
 
