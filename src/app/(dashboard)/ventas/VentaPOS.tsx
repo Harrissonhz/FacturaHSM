@@ -2,9 +2,8 @@
 
 // ---------------------------------------------------------------------
 // POS de venta (Client Component) - con enlace a Factura PDF.
-// - Selector de cliente (busqueda) + "Nuevo cliente" (bottom sheet).
-// - Buscador de productos + carrito multi-producto.
-// - Tras registrar, ofrece VER/IMPRIMIR la factura (/factura/[ventaId]).
+// Mejora usabilidad: productos como LISTA VISIBLE con botón Agregar
+// (no hay que digitar). Buscador opcional para filtrar si hay muchos.
 // ---------------------------------------------------------------------
 import { useState, useMemo } from "react";
 import { money } from "@/lib/format";
@@ -39,7 +38,6 @@ type Props = {
 export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) {
   const [clientes, setClientes] = useState<Cliente[]>(clientesIniciales);
   const [clienteId, setClienteId] = useState<string>(clientesIniciales[0]?.id ?? "");
-  const [buscarCliente, setBuscarCliente] = useState("");
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
 
   const [buscarProd, setBuscarProd] = useState("");
@@ -50,10 +48,6 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [resultado, setResultado] = useState<any>(null);
 
-  const clientesFiltrados = useMemo(
-    () => clientes.filter((c) => c.nombre.toLowerCase().includes(buscarCliente.toLowerCase())),
-    [clientes, buscarCliente]
-  );
   const itemsFiltrados = useMemo(
     () =>
       items.filter((it) =>
@@ -104,6 +98,11 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
   }
   function quitar(key: string) {
     setCarrito((prev) => prev.filter((l) => l.key !== key));
+  }
+
+  // cantidad ya agregada de un item (para mostrar y toper el stock)
+  function enCarritoCant(it: Item) {
+    return carrito.find((l) => l.key === it.variante_id + it.calidad_id)?.cantidad ?? 0;
   }
 
   async function registrar() {
@@ -169,7 +168,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
     }
   }
 
-  // ---- Vista de exito (con enlace a la factura) ----
+  // ---- Vista de exito ----
   if (resultado) {
     return (
       <div className="alert alert-success" style={{ padding: "var(--space-5)" }}>
@@ -181,13 +180,9 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
           <li>Cuenta por cobrar: <strong>{resultado.cuenta_id ? "creada" : "-"}</strong></li>
         </ul>
         <div style={{ marginTop: "var(--space-4)", display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-          <a className="btn btn-accent" href={`/factura/${resultado.venta_id}`}>
-            🧾 Ver factura
-          </a>
+          <a className="btn btn-accent" href={`/factura/${resultado.venta_id}`}>🧾 Ver factura</a>
           <a className="btn btn-success" href="/cartera">Ver cartera</a>
-          <button className="btn btn-secondary" onClick={() => setResultado(null)}>
-            Nueva venta
-          </button>
+          <button className="btn btn-secondary" onClick={() => setResultado(null)}>Nueva venta</button>
         </div>
       </div>
     );
@@ -203,27 +198,19 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
             + Nuevo
           </button>
         </div>
-        <div className="field" style={{ marginTop: "var(--space-3)", marginBottom: "var(--space-2)" }}>
-          <input
-            className="input"
-            placeholder="Buscar cliente..."
-            value={buscarCliente}
-            onChange={(e) => setBuscarCliente(e.target.value)}
-          />
-        </div>
-        {clientesFiltrados.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>No hay clientes. Toca “+ Nuevo”.</p>
-        ) : (
-          <div className="field" style={{ margin: 0 }}>
+        <div className="field" style={{ marginTop: "var(--space-3)", marginBottom: 0 }}>
+          {clientes.length === 0 ? (
+            <p className="muted" style={{ margin: 0 }}>No hay clientes. Toca “+ Nuevo”.</p>
+          ) : (
             <select className="select" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
-              {clientesFiltrados.map((c) => (
+              {clientes.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.nombre}{c.municipio ? ` · ${c.municipio}` : ""}
                 </option>
               ))}
             </select>
-          </div>
-        )}
+          )}
+        </div>
         {clienteSel && (
           <p className="sub" style={{ marginTop: "var(--space-2)", marginBottom: 0 }}>
             Vendedor: {vendedor.nombre}
@@ -231,30 +218,42 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
         )}
       </div>
 
-      {/* Productos */}
+      {/* Productos disponibles: LISTA VISIBLE con botón Agregar */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Productos disponibles</h3>
-        <div className="field" style={{ marginBottom: "var(--space-3)" }}>
-          <input
-            className="input"
-            placeholder="Buscar por referencia o calidad..."
-            value={buscarProd}
-            onChange={(e) => setBuscarProd(e.target.value)}
-          />
-        </div>
-        {itemsFiltrados.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>Sin productos que coincidan.</p>
+
+        {/* Buscador opcional (solo filtra la lista) */}
+        {items.length > 5 && (
+          <div className="field" style={{ marginBottom: "var(--space-3)" }}>
+            <input
+              className="input"
+              placeholder="Filtrar lista..."
+              value={buscarProd}
+              onChange={(e) => setBuscarProd(e.target.value)}
+            />
+          </div>
+        )}
+
+        {items.length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>
+            No tienes inventario disponible para vender.
+          </p>
+        ) : itemsFiltrados.length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>Ningún producto coincide con el filtro.</p>
         ) : (
           <div className="list-cards">
-            {itemsFiltrados.map((it, i) => {
-              const enCarrito = carrito.find((l) => l.key === it.variante_id + it.calidad_id);
-              const agotado = enCarrito ? enCarrito.cantidad >= it.cantidad : false;
+            {itemsFiltrados.map((it) => {
+              const yaCant = enCarritoCant(it);
+              const agotado = yaCant >= it.cantidad;
               return (
-                <div className="list-item" key={i}>
+                <div className="list-item" key={it.variante_id + it.calidad_id}>
                   <div className="row">
                     <div>
                       <div className="title">{it.sku}</div>
-                      <div className="sub">Disponible: {it.cantidad}</div>
+                      <div className="sub">
+                        Disponible: {it.cantidad}
+                        {yaCant > 0 ? ` · en carrito: ${yaCant}` : ""}
+                      </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div className="amount">{money(it.precio)}</div>
