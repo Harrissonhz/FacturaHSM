@@ -2,10 +2,7 @@
 
 // ---------------------------------------------------------------------
 // Server Actions para Compras y Recepción (Bloque 2).
-// - crearProveedor
-// - crearCompra (cabecera + detalle) -> estado PENDIENTE
-// - recibirMercancia (parcial/total) -> RPC sp_recibir_mercancia
-// Todas resuelven el tenant del usuario y respetan RLS.
+// NÚMERO DE COMPRA AUTOMÁTICO (consecutivo por tenant): OC-000001, OC-000002...
 // ---------------------------------------------------------------------
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -17,13 +14,21 @@ async function getTenant() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { supabase, tenantId: null as string | null };
-  const { data } = await supabase
-    .from("usuarios")
-    .select("tenant_id")
-    .eq("id", user.id)
-    .single();
-  return { supabase, tenantId: (data?.tenant_id as string) ?? null };
+  if (!user) return { supabase, tenantId: null as string | null, userId: null as string | null };
+  const { data } = await supabase.from("usuarios").select("tenant_id").eq("id", user.id).single();
+  return { supabase, tenantId: (data?.tenant_id as string) ?? null, userId: user.id };
+}
+
+// Genera el siguiente consecutivo para una tabla dada.
+// prefijo: "OC", "OP", "ENV"... ; tabla con columna tenant_id.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function siguienteConsecutivo(supabase: any, tabla: string, tenantId: string, prefijo: string) {
+  const { count } = await supabase
+    .from(tabla)
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
+  const n = (count ?? 0) + 1;
+  return `${prefijo}-${String(n).padStart(6, "0")}`;
 }
 
 // ---------------------------------------------------------------------
@@ -51,24 +56,17 @@ export async function crearProveedor(formData: FormData): Promise<ActionResult> 
 }
 
 // ---------------------------------------------------------------------
-// CREAR COMPRA (cabecera + detalle)
-// items: JSON string [{ variante_id, cantidad, costo }]
+// CREAR COMPRA (número automático OC-XXXXXX)
+// items: JSON [{ variante_id, cantidad, costo }]
 // ---------------------------------------------------------------------
 export async function crearCompra(formData: FormData): Promise<ActionResult> {
-  const { supabase, tenantId } = await getTenant();
+  const { supabase, tenantId, userId } = await getTenant();
   if (!tenantId) return { ok: false, error: "No autenticado." };
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const proveedor_id = String(formData.get("proveedor_id") ?? "");
-  const numero = String(formData.get("numero") ?? "").trim();
   const itemsRaw = String(formData.get("items") ?? "[]");
 
-  if (!proveedor_id || !numero) {
-    return { ok: false, error: "Proveedor y número de compra son obligatorios." };
-  }
+  if (!proveedor_id) return { ok: false, error: "El proveedor es obligatorio." };
 
   let items: { variante_id: string; cantidad: number; costo: number }[] = [];
   try {
@@ -76,11 +74,10 @@ export async function crearCompra(formData: FormData): Promise<ActionResult> {
   } catch {
     return { ok: false, error: "Detalle de compra inválido." };
   }
-  if (items.length === 0) {
-    return { ok: false, error: "Agrega al menos un producto a la compra." };
-  }
+  if (items.length === 0) return { ok: false, error: "Agrega al menos un producto a la compra." };
 
   const total = items.reduce((s, it) => s + it.cantidad * it.costo, 0);
+  const numero = await siguienteConsecutivo(supabase, "compras", tenantId, "OC");
 
   // 1. Cabecera
   const { data: compra, error } = await supabase
@@ -91,7 +88,7 @@ export async function crearCompra(formData: FormData): Promise<ActionResult> {
       numero,
       estado: "PENDIENTE",
       total,
-      created_by: user?.id,
+      created_by: userId,
     })
     .select("id")
     .single();
@@ -115,7 +112,7 @@ export async function crearCompra(formData: FormData): Promise<ActionResult> {
 
 // ---------------------------------------------------------------------
 // RECIBIR MERCANCÍA (parcial o total) -> RPC sp_recibir_mercancia
-// items: JSON string [{ compra_detalle_id, cantidad }]
+// items: JSON [{ compra_detalle_id, cantidad }]
 // ---------------------------------------------------------------------
 export async function recibirMercancia(formData: FormData): Promise<ActionResult> {
   const { supabase, tenantId } = await getTenant();
@@ -130,11 +127,8 @@ export async function recibirMercancia(formData: FormData): Promise<ActionResult
   } catch {
     return { ok: false, error: "Datos de recepción inválidos." };
   }
-  // Solo renglones con cantidad > 0
   items = items.filter((it) => it.cantidad > 0);
-  if (items.length === 0) {
-    return { ok: false, error: "Ingresa al menos una cantidad a recibir." };
-  }
+  if (items.length === 0) return { ok: false, error: "Ingresa al menos una cantidad a recibir." };
 
   const { error } = await supabase.rpc("sp_recibir_mercancia", {
     p_compra_id: compra_id,
@@ -142,7 +136,6 @@ export async function recibirMercancia(formData: FormData): Promise<ActionResult
   });
 
   if (error) {
-    // Mensajes de la RPC en lenguaje humano
     const msg = error.message.includes("RECIBO_EXCEDE_PENDIENTE")
       ? "La cantidad a recibir supera lo pendiente."
       : error.message.includes("COMPRA_NO_PENDIENTE")

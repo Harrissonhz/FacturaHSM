@@ -1,6 +1,6 @@
 "use client";
 
-// Formulario de distribución: elegir vendedor + items LISTO a enviar.
+// Formulario de distribución: vendedor + items LISTO. Número AUTOMÁTICO (ENV-XXXXXX).
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { distribuir } from "@/services/produccion.actions";
@@ -25,7 +25,6 @@ export default function DistribucionForm({
 }) {
   const router = useRouter();
   const [vendedorId, setVendedorId] = useState(vendedores[0]?.id ?? "");
-  const [numero, setNumero] = useState("");
   const [sel, setSel] = useState(items[0] ? items[0].variante_id + items[0].calidad_id : "");
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,8 +46,8 @@ export default function DistribucionForm({
 
   async function enviar() {
     setError(null);
-    if (!vendedorId || !numero.trim()) {
-      setError("Vendedor y número son obligatorios.");
+    if (!vendedorId) {
+      setError("Selecciona un vendedor.");
       return;
     }
     if (lineas.length === 0) {
@@ -58,7 +57,6 @@ export default function DistribucionForm({
     setLoading(true);
     const fd = new FormData();
     fd.set("vendedor_id", vendedorId);
-    fd.set("numero", numero.trim());
     fd.set("items", JSON.stringify(lineas.map((l) => ({ variante_id: l.variante_id, calidad_id: l.calidad_id, cantidad: l.cantidad }))));
     const res = await distribuir(fd);
     setLoading(false);
@@ -73,7 +71,7 @@ export default function DistribucionForm({
   return (
     <>
       <div className="card">
-        <div className="field">
+        <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="vendedor">Vendedor *</label>
           <select id="vendedor" className="select" value={vendedorId} onChange={(e) => setVendedorId(e.target.value)}>
             {vendedores.map((v) => (
@@ -81,10 +79,9 @@ export default function DistribucionForm({
             ))}
           </select>
         </div>
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label htmlFor="numero">Número de envío *</label>
-          <input id="numero" className="input" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Ej: ENV-0001" />
-        </div>
+        <p className="sub" style={{ marginTop: 10, marginBottom: 0 }}>
+          El número de envío se asigna automáticamente (ENV-XXXXXX).
+        </p>
       </div>
 
       <div className="card">
@@ -116,16 +113,8 @@ export default function DistribucionForm({
                 </div>
                 <div className="field" style={{ marginTop: 10, marginBottom: 0 }}>
                   <label>Cantidad a enviar</label>
-                  <input
-                    className="input tabular"
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={l.disponible}
-                    value={l.cantidad}
-                    onChange={(e) => actualizar(l.key, Number(e.target.value), l.disponible)}
-                    style={{ width: 140 }}
-                  />
+                  <input className="input tabular" type="number" inputMode="numeric" min={1} max={l.disponible} value={l.cantidad}
+                    onChange={(e) => actualizar(l.key, Number(e.target.value), l.disponible)} style={{ width: 140 }} />
                 </div>
               </div>
             ))}

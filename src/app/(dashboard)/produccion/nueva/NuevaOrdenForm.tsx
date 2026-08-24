@@ -1,6 +1,6 @@
 "use client";
 
-// Formulario de nueva orden de producción: proceso + entradas desde CRUDO.
+// Formulario de nueva orden de producción. Número AUTOMÁTICO (OP-XXXXXX).
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { crearOrdenProduccion } from "@/services/produccion.actions";
@@ -18,7 +18,6 @@ export default function NuevaOrdenForm({
 }) {
   const router = useRouter();
   const [procesoId, setProcesoId] = useState(procesos[0]?.id ?? "");
-  const [numero, setNumero] = useState("");
   const [varSel, setVarSel] = useState(crudos[0]?.variante_id ?? "");
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,9 +30,7 @@ export default function NuevaOrdenForm({
     setLineas((prev) => [...prev, { ...c, cantidad: c.disponible }]);
   }
   function actualizar(id: string, valor: number, max: number) {
-    setLineas((prev) =>
-      prev.map((l) => (l.variante_id === id ? { ...l, cantidad: Math.max(0, Math.min(max, valor)) } : l))
-    );
+    setLineas((prev) => prev.map((l) => (l.variante_id === id ? { ...l, cantidad: Math.max(0, Math.min(max, valor)) } : l)));
   }
   function quitar(id: string) {
     setLineas((prev) => prev.filter((l) => l.variante_id !== id));
@@ -41,8 +38,8 @@ export default function NuevaOrdenForm({
 
   async function guardar() {
     setError(null);
-    if (!procesoId || !numero.trim()) {
-      setError("Número y proceso son obligatorios.");
+    if (!procesoId) {
+      setError("Selecciona un proceso.");
       return;
     }
     if (lineas.length === 0) {
@@ -51,7 +48,6 @@ export default function NuevaOrdenForm({
     }
     setLoading(true);
     const fd = new FormData();
-    fd.set("numero", numero.trim());
     fd.set("proceso_id", procesoId);
     fd.set("entradas", JSON.stringify(lineas.map((l) => ({ variante_id: l.variante_id, cantidad: l.cantidad }))));
     const res = await crearOrdenProduccion(fd);
@@ -67,10 +63,6 @@ export default function NuevaOrdenForm({
   return (
     <>
       <div className="card">
-        <div className="field">
-          <label htmlFor="numero">Número de orden *</label>
-          <input id="numero" className="input" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Ej: OP-0001" />
-        </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="proceso">Proceso *</label>
           <select id="proceso" className="select" value={procesoId} onChange={(e) => setProcesoId(e.target.value)}>
@@ -79,6 +71,9 @@ export default function NuevaOrdenForm({
             ))}
           </select>
         </div>
+        <p className="sub" style={{ marginTop: 10, marginBottom: 0 }}>
+          El número de orden se asigna automáticamente (OP-XXXXXX).
+        </p>
       </div>
 
       <div className="card">
@@ -108,16 +103,8 @@ export default function NuevaOrdenForm({
                 </div>
                 <div className="field" style={{ marginTop: 10, marginBottom: 0 }}>
                   <label>Cantidad a producir</label>
-                  <input
-                    className="input tabular"
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={l.disponible}
-                    value={l.cantidad}
-                    onChange={(e) => actualizar(l.variante_id, Number(e.target.value), l.disponible)}
-                    style={{ width: 140 }}
-                  />
+                  <input className="input tabular" type="number" inputMode="numeric" min={1} max={l.disponible} value={l.cantidad}
+                    onChange={(e) => actualizar(l.variante_id, Number(e.target.value), l.disponible)} style={{ width: 140 }} />
                 </div>
               </div>
             ))}

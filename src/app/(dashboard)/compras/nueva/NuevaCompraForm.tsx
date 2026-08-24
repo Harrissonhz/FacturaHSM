@@ -1,6 +1,6 @@
 "use client";
 
-// Formulario de Nueva compra: cabecera + detalle (agregar variantes).
+// Formulario de Nueva compra: proveedor + detalle. Número AUTOMÁTICO.
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
@@ -19,41 +19,30 @@ export default function NuevaCompraForm({
 }) {
   const router = useRouter();
   const [proveedorId, setProveedorId] = useState(proveedores[0]?.id ?? "");
-  const [numero, setNumero] = useState("");
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [varSel, setVarSel] = useState(variantes[0]?.id ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const total = useMemo(
-    () => lineas.reduce((s, l) => s + l.cantidad * l.costo, 0),
-    [lineas]
-  );
+  const total = useMemo(() => lineas.reduce((s, l) => s + l.cantidad * l.costo, 0), [lineas]);
 
   function agregar() {
     const v = variantes.find((x) => x.id === varSel);
     if (!v) return;
-    if (lineas.some((l) => l.variante_id === v.id)) return; // ya está
-    setLineas((prev) => [
-      ...prev,
-      { variante_id: v.id, sku: v.sku, cantidad: 1, costo: 0 },
-    ]);
+    if (lineas.some((l) => l.variante_id === v.id)) return;
+    setLineas((prev) => [...prev, { variante_id: v.id, sku: v.sku, cantidad: 1, costo: 0 }]);
   }
-
   function actualizar(id: string, campo: "cantidad" | "costo", valor: number) {
-    setLineas((prev) =>
-      prev.map((l) => (l.variante_id === id ? { ...l, [campo]: Math.max(0, valor) } : l))
-    );
+    setLineas((prev) => prev.map((l) => (l.variante_id === id ? { ...l, [campo]: Math.max(0, valor) } : l)));
   }
-
   function quitar(id: string) {
     setLineas((prev) => prev.filter((l) => l.variante_id !== id));
   }
 
   async function guardar() {
     setError(null);
-    if (!proveedorId || !numero.trim()) {
-      setError("Proveedor y número son obligatorios.");
+    if (!proveedorId) {
+      setError("Selecciona un proveedor.");
       return;
     }
     if (lineas.length === 0) {
@@ -63,13 +52,7 @@ export default function NuevaCompraForm({
     setLoading(true);
     const fd = new FormData();
     fd.set("proveedor_id", proveedorId);
-    fd.set("numero", numero.trim());
-    fd.set(
-      "items",
-      JSON.stringify(
-        lineas.map((l) => ({ variante_id: l.variante_id, cantidad: l.cantidad, costo: l.costo }))
-      )
-    );
+    fd.set("items", JSON.stringify(lineas.map((l) => ({ variante_id: l.variante_id, cantidad: l.cantidad, costo: l.costo }))));
     const res = await crearCompra(fd);
     setLoading(false);
     if (res.ok) {
@@ -83,7 +66,7 @@ export default function NuevaCompraForm({
   return (
     <>
       <div className="card">
-        <div className="field">
+        <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="proveedor">Proveedor *</label>
           <select id="proveedor" className="select" value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
             {proveedores.map((p) => (
@@ -91,10 +74,9 @@ export default function NuevaCompraForm({
             ))}
           </select>
         </div>
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label htmlFor="numero">Número de compra *</label>
-          <input id="numero" className="input" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Ej: OC-0002" />
-        </div>
+        <p className="sub" style={{ marginTop: 10, marginBottom: 0 }}>
+          El número de compra se asigna automáticamente (OC-XXXXXX).
+        </p>
       </div>
 
       <div className="card">
@@ -122,27 +104,13 @@ export default function NuevaCompraForm({
                 <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
                   <div className="field" style={{ marginBottom: 0 }}>
                     <label>Cantidad</label>
-                    <input
-                      className="input tabular"
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      value={l.cantidad}
-                      onChange={(e) => actualizar(l.variante_id, "cantidad", Number(e.target.value))}
-                      style={{ width: 110 }}
-                    />
+                    <input className="input tabular" type="number" inputMode="numeric" min={1} value={l.cantidad}
+                      onChange={(e) => actualizar(l.variante_id, "cantidad", Number(e.target.value))} style={{ width: 110 }} />
                   </div>
                   <div className="field" style={{ marginBottom: 0 }}>
                     <label>Costo unitario</label>
-                    <input
-                      className="input tabular"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      value={l.costo}
-                      onChange={(e) => actualizar(l.variante_id, "costo", Number(e.target.value))}
-                      style={{ width: 140 }}
-                    />
+                    <input className="input tabular" type="number" inputMode="numeric" min={0} value={l.costo}
+                      onChange={(e) => actualizar(l.variante_id, "costo", Number(e.target.value))} style={{ width: 140 }} />
                   </div>
                   <div style={{ marginLeft: "auto", textAlign: "right" }}>
                     <div className="sub">Subtotal</div>

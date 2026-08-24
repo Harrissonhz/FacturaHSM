@@ -2,10 +2,7 @@
 
 // ---------------------------------------------------------------------
 // Server Actions para Producción y Distribución (Bloque 3).
-// - crearOrdenProduccion (cabecera + entradas desde CRUDO)
-// - ejecutarProduccion (resultados por calidad) -> RPC sp_ejecutar_produccion
-// - empacar (TERMINADO -> LISTO) -> RPC sp_empacar
-// - crearTransferencia + confirmar (CENTRAL -> VENDEDOR) -> sp_transferir_inventario
+// NÚMEROS AUTOMÁTICOS: orden OP-XXXXXX, envío ENV-XXXXXX (consecutivo/tenant).
 // ---------------------------------------------------------------------
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -22,19 +19,28 @@ async function getTenant() {
   return { supabase, tenantId: (data?.tenant_id as string) ?? null, userId: user.id };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function siguienteConsecutivo(supabase: any, tabla: string, tenantId: string, prefijo: string) {
+  const { count } = await supabase
+    .from(tabla)
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
+  const n = (count ?? 0) + 1;
+  return `${prefijo}-${String(n).padStart(6, "0")}`;
+}
+
 // ---------------------------------------------------------------------
-// CREAR ORDEN DE PRODUCCIÓN (cabecera + entradas)
-// entradas: JSON [{ variante_id, cantidad }]  (se toman desde CRUDO/PRIMERA)
+// CREAR ORDEN DE PRODUCCIÓN (número automático OP-XXXXXX)
+// entradas: JSON [{ variante_id, cantidad }]  (desde CRUDO/PRIMERA)
 // ---------------------------------------------------------------------
 export async function crearOrdenProduccion(formData: FormData): Promise<ActionResult> {
   const { supabase, tenantId, userId } = await getTenant();
   if (!tenantId) return { ok: false, error: "No autenticado." };
 
-  const numero = String(formData.get("numero") ?? "").trim();
   const proceso_id = String(formData.get("proceso_id") ?? "");
   const entradasRaw = String(formData.get("entradas") ?? "[]");
 
-  if (!numero || !proceso_id) return { ok: false, error: "Número y proceso son obligatorios." };
+  if (!proceso_id) return { ok: false, error: "El proceso es obligatorio." };
 
   let entradas: { variante_id: string; cantidad: number }[] = [];
   try {
@@ -45,11 +51,12 @@ export async function crearOrdenProduccion(formData: FormData): Promise<ActionRe
   entradas = entradas.filter((e) => e.cantidad > 0);
   if (entradas.length === 0) return { ok: false, error: "Agrega al menos una unidad a producir." };
 
-  // Catálogos de estado/calidad de origen (CRUDO / PRIMERA)
   const { data: estCrudo } = await supabase
     .from("estados_inventario").select("id").eq("tenant_id", tenantId).eq("codigo", "CRUDO").single();
   const { data: calPrimera } = await supabase
     .from("calidades").select("id").eq("tenant_id", tenantId).eq("codigo", "PRIMERA").single();
+
+  const numero = await siguienteConsecutivo(supabase, "ordenes_produccion", tenantId, "OP");
 
   // 1. Cabecera
   const { data: orden, error } = await supabase
@@ -81,8 +88,8 @@ export async function crearOrdenProduccion(formData: FormData): Promise<ActionRe
 }
 
 // ---------------------------------------------------------------------
-// EJECUTAR PRODUCCIÓN (cierra con resultados por calidad)
-// resultados: JSON [{ variante_id, calidad_codigo, cantidad }]  -> TERMINADO
+// EJECUTAR PRODUCCIÓN (resultados por calidad) -> RPC sp_ejecutar_produccion
+// resultados: JSON [{ variante_id, calidad_codigo, cantidad }]
 // ---------------------------------------------------------------------
 export async function ejecutarProduccion(formData: FormData): Promise<ActionResult> {
   const { supabase, tenantId } = await getTenant();
@@ -100,7 +107,6 @@ export async function ejecutarProduccion(formData: FormData): Promise<ActionResu
   resultados = resultados.filter((r) => r.cantidad > 0);
   if (resultados.length === 0) return { ok: false, error: "Ingresa los resultados de la producción." };
 
-  // Resolver ids de estado TERMINADO y de cada calidad
   const { data: estTerm } = await supabase
     .from("estados_inventario").select("id").eq("tenant_id", tenantId).eq("codigo", "TERMINADO").single();
   const { data: calidades } = await supabase
@@ -166,18 +172,17 @@ export async function empacar(formData: FormData): Promise<ActionResult> {
 }
 
 // ---------------------------------------------------------------------
-// DISTRIBUCIÓN: crear transferencia CENTRAL -> VENDEDOR y confirmarla.
-// items: JSON [{ variante_id, calidad_id, cantidad }]  (en estado LISTO)
+// DISTRIBUCIÓN (número de envío automático ENV-XXXXXX)
+// items: JSON [{ variante_id, calidad_id, cantidad }]  (estado LISTO)
 // ---------------------------------------------------------------------
 export async function distribuir(formData: FormData): Promise<ActionResult> {
   const { supabase, tenantId, userId } = await getTenant();
   if (!tenantId) return { ok: false, error: "No autenticado." };
 
   const vendedor_id = String(formData.get("vendedor_id") ?? "");
-  const numero = String(formData.get("numero") ?? "").trim();
   const itemsRaw = String(formData.get("items") ?? "[]");
 
-  if (!vendedor_id || !numero) return { ok: false, error: "Vendedor y número son obligatorios." };
+  if (!vendedor_id) return { ok: false, error: "El vendedor es obligatorio." };
 
   let items: { variante_id: string; calidad_id: string; cantidad: number }[] = [];
   try {
@@ -188,7 +193,6 @@ export async function distribuir(formData: FormData): Promise<ActionResult> {
   items = items.filter((i) => i.cantidad > 0);
   if (items.length === 0) return { ok: false, error: "Agrega al menos una unidad a enviar." };
 
-  // Ubicaciones: CENTRAL (origen) y la del vendedor (destino)
   const { data: central } = await supabase
     .from("ubicaciones").select("id").eq("tenant_id", tenantId).eq("tipo", "CENTRAL").single();
   const { data: vendedor } = await supabase
@@ -198,7 +202,9 @@ export async function distribuir(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: "No se encontró la ubicación central o del vendedor." };
   }
 
-  // 1. Cabecera de transferencia (ENVIO)
+  const numero = await siguienteConsecutivo(supabase, "transferencias", tenantId, "ENV");
+
+  // 1. Cabecera (ENVIO)
   const { data: tr, error } = await supabase
     .from("transferencias")
     .insert({
@@ -224,7 +230,7 @@ export async function distribuir(formData: FormData): Promise<ActionResult> {
   const { error: errDet } = await supabase.from("transferencias_detalle").insert(detalle);
   if (errDet) return { ok: false, error: errDet.message };
 
-  // 3. Confirmar (mueve el inventario) -> RPC
+  // 3. Confirmar (mueve inventario) -> RPC
   const { error: errConf } = await supabase.rpc("sp_transferir_inventario", {
     p_transferencia_id: tr.id,
   });
