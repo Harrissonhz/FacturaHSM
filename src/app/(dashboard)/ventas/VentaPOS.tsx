@@ -40,7 +40,9 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
   const [clienteId, setClienteId] = useState<string>(clientesIniciales[0]?.id ?? "");
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
 
-  const [buscarProd, setBuscarProd] = useState("");
+  const [prodSel, setProdSel] = useState<string>(
+    items[0] ? items[0].variante_id + items[0].calidad_id : ""
+  );
   const [carrito, setCarrito] = useState<LineaCarrito[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -48,13 +50,6 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [resultado, setResultado] = useState<any>(null);
 
-  const itemsFiltrados = useMemo(
-    () =>
-      items.filter((it) =>
-        `${it.sku} ${it.calidad}`.toLowerCase().includes(buscarProd.toLowerCase())
-      ),
-    [items, buscarProd]
-  );
   const total = useMemo(
     () => carrito.reduce((s, l) => s + l.precio * l.cantidad, 0),
     [carrito]
@@ -100,9 +95,10 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
     setCarrito((prev) => prev.filter((l) => l.key !== key));
   }
 
-  // cantidad ya agregada de un item (para mostrar y toper el stock)
-  function enCarritoCant(it: Item) {
-    return carrito.find((l) => l.key === it.variante_id + it.calidad_id)?.cantidad ?? 0;
+  // Agregar el producto elegido en el dropdown
+  function agregarSeleccionado() {
+    const it = items.find((x) => x.variante_id + x.calidad_id === prodSel);
+    if (it) agregarAlCarrito(it);
   }
 
   async function registrar() {
@@ -218,59 +214,35 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
         )}
       </div>
 
-      {/* Productos disponibles: LISTA VISIBLE con botón Agregar */}
+      {/* Productos disponibles: DROPDOWN + botón Agregar (como Cliente) */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Productos disponibles</h3>
-
-        {/* Buscador opcional (solo filtra la lista) */}
-        {items.length > 5 && (
-          <div className="field" style={{ marginBottom: "var(--space-3)" }}>
-            <input
-              className="input"
-              placeholder="Filtrar lista..."
-              value={buscarProd}
-              onChange={(e) => setBuscarProd(e.target.value)}
-            />
-          </div>
-        )}
 
         {items.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>
             No tienes inventario disponible para vender.
           </p>
-        ) : itemsFiltrados.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>Ningún producto coincide con el filtro.</p>
         ) : (
-          <div className="list-cards">
-            {itemsFiltrados.map((it) => {
-              const yaCant = enCarritoCant(it);
-              const agotado = yaCant >= it.cantidad;
-              return (
-                <div className="list-item" key={it.variante_id + it.calidad_id}>
-                  <div className="row">
-                    <div>
-                      <div className="title">{it.sku}</div>
-                      <div className="sub">
-                        Disponible: {it.cantidad}
-                        {yaCant > 0 ? ` · en carrito: ${yaCant}` : ""}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div className="amount">{money(it.precio)}</div>
-                      <EstadoBadge estado={it.calidad} />
-                    </div>
-                  </div>
-                  <button
-                    className="btn btn-accent btn-full btn-sm"
-                    style={{ marginTop: "var(--space-3)" }}
-                    onClick={() => agregarAlCarrito(it)}
-                    disabled={agotado}
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+              <label htmlFor="producto">Selecciona un producto</label>
+              <select
+                id="producto"
+                className="select"
+                value={prodSel}
+                onChange={(e) => setProdSel(e.target.value)}
+              >
+                {items.map((it) => (
+                  <option
+                    key={it.variante_id + it.calidad_id}
+                    value={it.variante_id + it.calidad_id}
                   >
-                    {agotado ? "Sin más stock" : "Agregar"}
-                  </button>
-                </div>
-              );
-            })}
+                    {it.sku} · {it.calidad} · {money(it.precio)} (disp: {it.cantidad})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="btn" onClick={agregarSeleccionado}>Agregar</button>
           </div>
         )}
       </div>
