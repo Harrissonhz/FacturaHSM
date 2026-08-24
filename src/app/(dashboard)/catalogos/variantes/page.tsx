@@ -1,7 +1,6 @@
-// Pantalla de Variantes: lista + crear.
+// Pantalla de Variantes (delega en VariantesClient).
 import { createClient } from "@/lib/supabase/server";
-import { money } from "@/lib/format";
-import VarianteForm from "./VarianteForm";
+import VariantesClient from "./VariantesClient";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +9,7 @@ export default async function VariantesPage() {
 
   const { data: variantes } = await supabase
     .from("variantes")
-    .select("id, sku, referencia, precio_base, activo, productos(nombre), colores(nombre), tallas(nombre)")
+    .select("id, sku, referencia, precio_base, activo, productos(nombre), colores(nombre), tallas(nombre), precios(precio, calidades(codigo))")
     .order("sku");
 
   const { data: productos } = await supabase.from("productos").select("id, nombre").eq("activo", true).order("nombre");
@@ -18,42 +17,25 @@ export default async function VariantesPage() {
   const { data: tallas } = await supabase.from("tallas").select("id, nombre").eq("activo", true).order("orden");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const lista = (variantes ?? []) as any[];
+  const lista = (variantes ?? []).map((v: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pSeg = (v.precios ?? []).find((p: any) => p.calidades?.codigo === "SEGUNDA");
+    return {
+      id: v.id,
+      sku: v.sku,
+      referencia: v.referencia,
+      precio_base: Number(v.precio_base),
+      precio_segunda: Number(pSeg?.precio ?? 0),
+      activo: v.activo,
+      producto: v.productos?.nombre ?? "-",
+      color: v.colores?.nombre ?? "-",
+      talla: v.tallas?.nombre ?? "-",
+    };
+  });
 
   return (
     <main>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <div>
-          <h1 style={{ marginBottom: 4 }}>Variantes</h1>
-          <p className="muted" style={{ margin: 0 }}>
-            <a href="/catalogos">← Catálogos</a>
-          </p>
-        </div>
-        <VarianteForm productos={productos ?? []} colores={colores ?? []} tallas={tallas ?? []} />
-      </div>
-
-      {lista.length === 0 ? (
-        <div className="empty-state">
-          <span className="emoji">🏷️</span>
-          Aún no hay variantes. Crea la primera con “+ Nueva variante”.
-        </div>
-      ) : (
-        <div className="list-cards" style={{ marginTop: 16 }}>
-          {lista.map((v) => (
-            <div className="list-item" key={v.id}>
-              <div className="row">
-                <div>
-                  <div className="title">{v.sku}</div>
-                  <div className="sub">
-                    {v.productos?.nombre ?? "-"} · {v.colores?.nombre ?? "-"} · {v.tallas?.nombre ?? "-"}
-                  </div>
-                </div>
-                <div className="amount">{money(Number(v.precio_base))}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <VariantesClient variantes={lista} productos={productos ?? []} colores={colores ?? []} tallas={tallas ?? []} />
     </main>
   );
 }

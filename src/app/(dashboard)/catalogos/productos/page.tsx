@@ -1,6 +1,6 @@
-// Pantalla de Productos: lista + crear.
+// Pantalla de Productos (delega en ProductosClient).
 import { createClient } from "@/lib/supabase/server";
-import ProductoForm from "./ProductoForm";
+import ProductosClient from "./ProductosClient";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,7 @@ export default async function ProductosPage() {
 
   const { data: productos } = await supabase
     .from("productos")
-    .select("id, nombre, genero, activo, tipos_producto(nombre)")
+    .select("id, nombre, genero, activo, tipo_producto_id, tipos_producto(nombre)")
     .order("nombre");
 
   const { data: tipos } = await supabase
@@ -19,44 +19,18 @@ export default async function ProductosPage() {
     .order("nombre");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const lista = (productos ?? []) as any[];
+  const lista = (productos ?? []).map((p: any) => ({
+    id: p.id,
+    nombre: p.nombre,
+    genero: p.genero,
+    activo: p.activo,
+    tipo_producto_id: p.tipo_producto_id,
+    tipoNombre: p.tipos_producto?.nombre ?? "-",
+  }));
 
   return (
     <main>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <div>
-          <h1 style={{ marginBottom: 4 }}>Productos</h1>
-          <p className="muted" style={{ margin: 0 }}>
-            <a href="/catalogos">← Catálogos</a>
-          </p>
-        </div>
-        <ProductoForm tipos={tipos ?? []} />
-      </div>
-
-      {lista.length === 0 ? (
-        <div className="empty-state">
-          <span className="emoji">👕</span>
-          Aún no hay productos. Crea el primero con “+ Nuevo producto”.
-        </div>
-      ) : (
-        <div className="list-cards" style={{ marginTop: 16 }}>
-          {lista.map((p) => (
-            <div className="list-item" key={p.id}>
-              <div className="row">
-                <div>
-                  <div className="title">{p.nombre}</div>
-                  <div className="sub">
-                    {p.tipos_producto?.nombre ?? "-"} · {p.genero}
-                  </div>
-                </div>
-                <span className={`badge ${p.activo ? "badge-success" : "badge-muted"}`}>
-                  {p.activo ? "Activo" : "Inactivo"}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <ProductosClient productos={lista} tipos={tipos ?? []} />
     </main>
   );
 }
