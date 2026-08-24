@@ -2,7 +2,8 @@
 
 // ---------------------------------------------------------------------
 // Server Actions para Producción y Distribución (Bloque 3).
-// NÚMEROS AUTOMÁTICOS: orden OP-XXXXXX, envío ENV-XXXXXX (consecutivo/tenant).
+// NÚMEROS AUTOMÁTICOS: orden OP-XXXXXX, envío ENV-XXXXXX, retorno RET-XXXXXX.
+// Incluye RETORNO de inventario (vendedor -> central).
 // ---------------------------------------------------------------------
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -31,7 +32,6 @@ async function siguienteConsecutivo(supabase: any, tabla: string, tenantId: stri
 
 // ---------------------------------------------------------------------
 // CREAR ORDEN DE PRODUCCIÓN (número automático OP-XXXXXX)
-// entradas: JSON [{ variante_id, cantidad }]  (desde CRUDO/PRIMERA)
 // ---------------------------------------------------------------------
 export async function crearOrdenProduccion(formData: FormData): Promise<ActionResult> {
   const { supabase, tenantId, userId } = await getTenant();
@@ -39,7 +39,6 @@ export async function crearOrdenProduccion(formData: FormData): Promise<ActionRe
 
   const proceso_id = String(formData.get("proceso_id") ?? "");
   const entradasRaw = String(formData.get("entradas") ?? "[]");
-
   if (!proceso_id) return { ok: false, error: "El proceso es obligatorio." };
 
   let entradas: { variante_id: string; cantidad: number }[] = [];
@@ -58,21 +57,13 @@ export async function crearOrdenProduccion(formData: FormData): Promise<ActionRe
 
   const numero = await siguienteConsecutivo(supabase, "ordenes_produccion", tenantId, "OP");
 
-  // 1. Cabecera
   const { data: orden, error } = await supabase
     .from("ordenes_produccion")
-    .insert({
-      tenant_id: tenantId,
-      numero,
-      proceso_id,
-      estado: "ABIERTA",
-      created_by: userId,
-    })
+    .insert({ tenant_id: tenantId, numero, proceso_id, estado: "ABIERTA", created_by: userId })
     .select("id")
     .single();
   if (error) return { ok: false, error: error.message };
 
-  // 2. Entradas
   const detalle = entradas.map((e) => ({
     orden_id: orden.id,
     variante_id: e.variante_id,
@@ -88,8 +79,7 @@ export async function crearOrdenProduccion(formData: FormData): Promise<ActionRe
 }
 
 // ---------------------------------------------------------------------
-// EJECUTAR PRODUCCIÓN (resultados por calidad) -> RPC sp_ejecutar_produccion
-// resultados: JSON [{ variante_id, calidad_codigo, cantidad }]
+// EJECUTAR PRODUCCIÓN -> RPC sp_ejecutar_produccion
 // ---------------------------------------------------------------------
 export async function ejecutarProduccion(formData: FormData): Promise<ActionResult> {
   const { supabase, tenantId } = await getTenant();
@@ -123,7 +113,6 @@ export async function ejecutarProduccion(formData: FormData): Promise<ActionResu
     p_orden_id: orden_id,
     p_resultados,
   });
-
   if (error) {
     const msg = error.message.includes("BALANCE_NO_CUADRA")
       ? "El total de resultados no coincide con lo que entró a producir."
@@ -159,7 +148,6 @@ export async function empacar(formData: FormData): Promise<ActionResult> {
     p_cantidad: cantidad,
     p_ubicacion_id: ubicacion_id,
   });
-
   if (error) {
     const msg = error.message.includes("SALDO_INSUFICIENTE")
       ? "No hay suficientes unidades TERMINADAS para empacar."
@@ -172,8 +160,7 @@ export async function empacar(formData: FormData): Promise<ActionResult> {
 }
 
 // ---------------------------------------------------------------------
-// DISTRIBUCIÓN (número de envío automático ENV-XXXXXX)
-// items: JSON [{ variante_id, calidad_id, cantidad }]  (estado LISTO)
+// DISTRIBUCIÓN: ENVIO central -> vendedor (número ENV-XXXXXX)
 // ---------------------------------------------------------------------
 export async function distribuir(formData: FormData): Promise<ActionResult> {
   const { supabase, tenantId, userId } = await getTenant();
@@ -181,7 +168,6 @@ export async function distribuir(formData: FormData): Promise<ActionResult> {
 
   const vendedor_id = String(formData.get("vendedor_id") ?? "");
   const itemsRaw = String(formData.get("items") ?? "[]");
-
   if (!vendedor_id) return { ok: false, error: "El vendedor es obligatorio." };
 
   let items: { variante_id: string; calidad_id: string; cantidad: number }[] = [];
@@ -197,14 +183,12 @@ export async function distribuir(formData: FormData): Promise<ActionResult> {
     .from("ubicaciones").select("id").eq("tenant_id", tenantId).eq("tipo", "CENTRAL").single();
   const { data: vendedor } = await supabase
     .from("vendedores").select("ubicacion_id").eq("id", vendedor_id).single();
-
   if (!central?.id || !vendedor?.ubicacion_id) {
     return { ok: false, error: "No se encontró la ubicación central o del vendedor." };
   }
 
   const numero = await siguienteConsecutivo(supabase, "transferencias", tenantId, "ENV");
 
-  // 1. Cabecera (ENVIO)
   const { data: tr, error } = await supabase
     .from("transferencias")
     .insert({
@@ -220,7 +204,6 @@ export async function distribuir(formData: FormData): Promise<ActionResult> {
     .single();
   if (error) return { ok: false, error: error.message };
 
-  // 2. Detalle
   const detalle = items.map((i) => ({
     transferencia_id: tr.id,
     variante_id: i.variante_id,
@@ -230,10 +213,7 @@ export async function distribuir(formData: FormData): Promise<ActionResult> {
   const { error: errDet } = await supabase.from("transferencias_detalle").insert(detalle);
   if (errDet) return { ok: false, error: errDet.message };
 
-  // 3. Confirmar (mueve inventario) -> RPC
-  const { error: errConf } = await supabase.rpc("sp_transferir_inventario", {
-    p_transferencia_id: tr.id,
-  });
+  const { error: errConf } = await supabase.rpc("sp_transferir_inventario", { p_transferencia_id: tr.id });
   if (errConf) {
     const msg = errConf.message.includes("SALDO_INSUFICIENTE")
       ? "No hay suficiente inventario LISTO en el central para enviar."
@@ -242,5 +222,75 @@ export async function distribuir(formData: FormData): Promise<ActionResult> {
   }
 
   revalidatePath("/distribucion");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------
+// RETORNO: vendedor -> central (número RET-XXXXXX)
+// Lo no vendido regresa al inventario central para reasignarse.
+// items: JSON [{ variante_id, calidad_id, cantidad }]  (estado LISTO)
+// ---------------------------------------------------------------------
+export async function retornar(formData: FormData): Promise<ActionResult> {
+  const { supabase, tenantId, userId } = await getTenant();
+  if (!tenantId) return { ok: false, error: "No autenticado." };
+
+  const vendedor_id = String(formData.get("vendedor_id") ?? "");
+  const itemsRaw = String(formData.get("items") ?? "[]");
+  if (!vendedor_id) return { ok: false, error: "El vendedor es obligatorio." };
+
+  let items: { variante_id: string; calidad_id: string; cantidad: number }[] = [];
+  try {
+    items = JSON.parse(itemsRaw);
+  } catch {
+    return { ok: false, error: "Ítems inválidos." };
+  }
+  items = items.filter((i) => i.cantidad > 0);
+  if (items.length === 0) return { ok: false, error: "Agrega al menos una unidad a retornar." };
+
+  const { data: central } = await supabase
+    .from("ubicaciones").select("id").eq("tenant_id", tenantId).eq("tipo", "CENTRAL").single();
+  const { data: vendedor } = await supabase
+    .from("vendedores").select("ubicacion_id").eq("id", vendedor_id).single();
+  if (!central?.id || !vendedor?.ubicacion_id) {
+    return { ok: false, error: "No se encontró la ubicación central o del vendedor." };
+  }
+
+  const numero = await siguienteConsecutivo(supabase, "transferencias", tenantId, "RET");
+
+  // Cabecera de transferencia (RETORNO): origen = vendedor, destino = central
+  const { data: tr, error } = await supabase
+    .from("transferencias")
+    .insert({
+      tenant_id: tenantId,
+      numero,
+      ubicacion_origen_id: vendedor.ubicacion_id,
+      ubicacion_destino_id: central.id,
+      tipo: "RETORNO",
+      estado: "BORRADOR",
+      created_by: userId,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, error: error.message };
+
+  const detalle = items.map((i) => ({
+    transferencia_id: tr.id,
+    variante_id: i.variante_id,
+    calidad_id: i.calidad_id,
+    cantidad: i.cantidad,
+  }));
+  const { error: errDet } = await supabase.from("transferencias_detalle").insert(detalle);
+  if (errDet) return { ok: false, error: errDet.message };
+
+  const { error: errConf } = await supabase.rpc("sp_transferir_inventario", { p_transferencia_id: tr.id });
+  if (errConf) {
+    const msg = errConf.message.includes("SALDO_INSUFICIENTE")
+      ? "El vendedor no tiene suficiente inventario para retornar esa cantidad."
+      : errConf.message;
+    return { ok: false, error: msg };
+  }
+
+  revalidatePath("/retorno");
+  revalidatePath("/inventario");
   return { ok: true };
 }
