@@ -2,7 +2,7 @@
 
 // ---------------------------------------------------------------------
 // Navegacion de la app (movil: bottom nav / escritorio: sidebar).
-// Items de admin: Compras, Producción, Distribución, Retorno, Catálogos.
+// Items de admin: Compras, Producción, Distribución, Retorno, Reportes, Catálogos.
 // En movil: 4 principales + "Más" (admin) que agrupa el resto.
 // ---------------------------------------------------------------------
 import Link from "next/link";
@@ -19,6 +19,7 @@ const ITEMS: Item[] = [
   { href: "/produccion", label: "Producción", icon: "🏭", roles: ["admin"] },
   { href: "/distribucion", label: "Distribución", icon: "🚚", roles: ["admin"] },
   { href: "/retorno", label: "Retorno", icon: "↩️", roles: ["admin"] },
+  { href: "/reportes", label: "Reportes", icon: "📊", roles: ["admin"] },
   { href: "/catalogos", label: "Catálogos", icon: "⚙️", roles: ["admin"] },
 ];
 

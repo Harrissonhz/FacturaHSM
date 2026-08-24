@@ -13,6 +13,7 @@ export default async function MasPage() {
     { href: "/produccion", icon: "🏭", label: "Producción", desc: "Transformar CRUDO en LISTO." },
     { href: "/distribucion", icon: "🚚", label: "Distribución", desc: "Enviar inventario a vendedores." },
     { href: "/retorno", icon: "↩️", label: "Retorno", desc: "Regresar lo no vendido al central." },
+    { href: "/reportes", icon: "📊", label: "Reportes", desc: "Inventario, ventas, cartera y trazabilidad." },
     { href: "/catalogos", icon: "⚙️", label: "Catálogos", desc: "Productos, variantes y vendedores." },
   ];
 
