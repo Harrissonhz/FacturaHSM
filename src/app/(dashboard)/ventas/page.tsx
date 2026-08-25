@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------
-// Pantalla de Ventas (Server Component) - POS completo.
-// Resuelve el vendedor segun el usuario logueado (o el primero si es admin),
-// carga TODOS sus clientes y su inventario disponible (LISTO), y los pasa
-// al formulario POS (selector de cliente + carrito multi-producto).
+// Pantalla de Ventas (Server Component) - POS.
+// Resuelve el vendedor (usuario logueado o el primero si es admin),
+// carga TODOS los clientes activos del tenant (clientes = de la empresa;
+// cualquier vendedor puede venderle a cualquiera), y el inventario del vendedor.
 // ---------------------------------------------------------------------
 import { createClient } from "@/lib/supabase/server";
 import { getPerfil } from "@/lib/auth/session";
@@ -14,8 +14,8 @@ export default async function VentasPage() {
   const supabase = createClient();
   const perfil = await getPerfil();
 
-  // 1. Resolver vendedor: si el usuario ES vendedor, usa su vendedor_id.
-  //    Si es admin (sin vendedor_id), toma el primer vendedor con ubicacion.
+  // 1. Vendedor: si el usuario ES vendedor, usa su vendedor_id; si es admin,
+  //    toma el primer vendedor con ubicación (para pruebas/operación).
   let vendedor:
     | { id: string; nombre: string; municipio: string | null; ubicacion_id: string }
     | null = null;
@@ -40,18 +40,14 @@ export default async function VentasPage() {
     vendedor = (data as any) ?? null;
   }
 
-  // 2. Clientes del vendedor
+  // 2. TODOS los clientes activos del tenant (ya no se filtra por vendedor).
   type Cliente = { id: string; nombre: string; municipio: string | null };
-  let clientes: Cliente[] = [];
-  if (vendedor) {
-    const { data } = await supabase
-      .from("clientes")
-      .select("id, nombre, municipio")
-      .eq("vendedor_id", vendedor.id)
-      .eq("activo", true)
-      .order("nombre");
-    clientes = (data ?? []) as Cliente[];
-  }
+  const { data: clientesData } = await supabase
+    .from("clientes")
+    .select("id, nombre, municipio")
+    .eq("activo", true)
+    .order("nombre");
+  const clientes = (clientesData ?? []) as Cliente[];
 
   // 3. Inventario disponible (LISTO) del vendedor + precios por calidad
   type ItemDisponible = {
@@ -106,8 +102,8 @@ export default async function VentasPage() {
         <div className="empty-state">
           <span className="emoji">🛒</span>
           <p>
-            No hay un vendedor con inventario asignado. Ejecuta{" "}
-            <code>datos_prueba.sql</code> o asigna inventario a un vendedor.
+            No hay un vendedor con inventario asignado. Asigna inventario a un
+            vendedor en Distribución.
           </p>
         </div>
       ) : (

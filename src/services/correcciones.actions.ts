@@ -1,10 +1,13 @@
 "use server";
 
 // ---------------------------------------------------------------------
-// Server Actions · Correcciones (7.2b)
-//  - Clientes: editar / inactivar-reactivar
-//  - Anular venta -> RPC sp_anular_venta (reversa inventario y cartera)
-//  - Ajuste de inventario -> RPC sp_ajustar_inventario (movimiento auditable)
+// Server Actions · Correcciones (7.2b) + fix cliente/vendedor flexible
+//  - Clientes: crear / editar (con vendedor de referencia) / inactivar
+//  - Anular venta -> RPC sp_anular_venta
+//  - Ajuste de inventario -> RPC sp_ajustar_inventario
+// Nota: el vendedor asignado al cliente es solo REFERENCIA (vendedor
+// habitual). NO restringe a quién se le puede vender: cualquier vendedor
+// puede venderle a cualquier cliente (clientes = de la empresa).
 // ---------------------------------------------------------------------
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -53,6 +56,9 @@ export async function editarCliente(formData: FormData): Promise<ActionResult> {
   const nombre = String(formData.get("nombre") ?? "").trim();
   if (!id || !nombre) return { ok: false, error: "El nombre es obligatorio." };
 
+  // vendedor_id puede venir vacío ("— Sin asignar —"). Es solo referencia.
+  const vendedor_id = String(formData.get("vendedor_id") ?? "");
+
   const { error } = await supabase
     .from("clientes")
     .update({
@@ -61,6 +67,7 @@ export async function editarCliente(formData: FormData): Promise<ActionResult> {
       telefono: String(formData.get("telefono") ?? "") || null,
       direccion: String(formData.get("direccion") ?? "") || null,
       municipio: String(formData.get("municipio") ?? "") || null,
+      vendedor_id: vendedor_id || null,
     })
     .eq("id", id);
   if (error) return { ok: false, error: error.message };
@@ -113,7 +120,6 @@ export async function anularVenta(formData: FormData): Promise<ActionResult> {
 
 // =====================================================================
 // AJUSTE DE INVENTARIO -> RPC sp_ajustar_inventario
-// delta puede ser positivo (entrada) o negativo (salida).
 // =====================================================================
 export async function ajustarInventario(formData: FormData): Promise<ActionResult> {
   const { supabase, tenantId } = await getTenant();

@@ -1,6 +1,7 @@
 "use client";
 
-// Lista de clientes con acciones: crear, editar, inactivar/reactivar.
+// Lista de clientes con acciones: crear, editar (incluye vendedor), inactivar.
+// El vendedor es solo referencia (habitual); no restringe las ventas.
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { crearClienteAdmin, editarCliente, toggleCliente } from "@/services/correcciones.actions";
@@ -8,7 +9,8 @@ import { crearClienteAdmin, editarCliente, toggleCliente } from "@/services/corr
 type Vendedor = { id: string; nombre: string };
 type Cliente = {
   id: string; nombre: string; documento: string | null; telefono: string | null;
-  direccion: string | null; municipio: string | null; activo: boolean; vendedor: string;
+  direccion: string | null; municipio: string | null; activo: boolean;
+  vendedor: string; vendedor_id: string | null;
 };
 
 export default function ClientesClient({ clientes, vendedores }: { clientes: Cliente[]; vendedores: Vendedor[] }) {
@@ -41,7 +43,7 @@ export default function ClientesClient({ clientes, vendedores }: { clientes: Cli
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <div>
           <h1 style={{ marginBottom: 4 }}>Clientes</h1>
-          <p className="muted" style={{ margin: 0 }}>Gestiona los clientes de tus vendedores.</p>
+          <p className="muted" style={{ margin: 0 }}>Los clientes son de la empresa; cualquier vendedor puede venderles.</p>
         </div>
         <button className="btn" onClick={() => { setSheet("nuevo"); setError(null); }}>+ Nuevo cliente</button>
       </div>
@@ -63,7 +65,7 @@ export default function ClientesClient({ clientes, vendedores }: { clientes: Cli
                   <div className="title">{c.nombre}</div>
                   <div className="sub">
                     {c.municipio ?? "Sin municipio"}
-                    {c.telefono ? ` · ${c.telefono}` : ""} · Vend: {c.vendedor}
+                    {c.telefono ? ` · ${c.telefono}` : ""} · Vend. habitual: {c.vendedor}
                   </div>
                 </div>
                 <span className={`badge ${c.activo ? "badge-success" : "badge-muted"}`}>{c.activo ? "Activo" : "Inactivo"}</span>
@@ -90,15 +92,19 @@ export default function ClientesClient({ clientes, vendedores }: { clientes: Cli
                 <label htmlFor="nombre">Nombre *</label>
                 <input id="nombre" name="nombre" className="input" required defaultValue={editando?.nombre ?? ""} placeholder="Nombre del cliente" />
               </div>
-              {!editando && (
-                <div className="field">
-                  <label htmlFor="vendedor_id">Vendedor</label>
-                  <select id="vendedor_id" name="vendedor_id" className="select">
-                    <option value="">— Sin asignar —</option>
-                    {vendedores.map((v) => <option key={v.id} value={v.id}>{v.nombre}</option>)}
-                  </select>
-                </div>
-              )}
+
+              {/* Selector de vendedor: ahora aparece TAMBIÉN al editar */}
+              <div className="field">
+                <label htmlFor="vendedor_id">Vendedor habitual (opcional)</label>
+                <select id="vendedor_id" name="vendedor_id" className="select" defaultValue={editando?.vendedor_id ?? ""}>
+                  <option value="">— Sin asignar —</option>
+                  {vendedores.map((v) => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+                </select>
+                <p className="sub" style={{ margin: "4px 0 0" }}>
+                  Solo referencia. Cualquier vendedor puede venderle a este cliente.
+                </p>
+              </div>
+
               <div className="field">
                 <label htmlFor="documento">Documento</label>
                 <input id="documento" name="documento" className="input" defaultValue={editando?.documento ?? ""} placeholder="Opcional" />

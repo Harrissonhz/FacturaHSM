@@ -9,7 +9,7 @@ export default async function ClientesPage() {
 
   const { data: clientes } = await supabase
     .from("clientes")
-    .select("id, nombre, documento, telefono, direccion, municipio, activo, vendedores(nombre)")
+    .select("id, nombre, documento, telefono, direccion, municipio, activo, vendedor_id, vendedores(nombre)")
     .order("nombre");
 
   const { data: vendedores } = await supabase
@@ -27,7 +27,8 @@ export default async function ClientesPage() {
     direccion: c.direccion,
     municipio: c.municipio,
     activo: c.activo,
-    vendedor: c.vendedores?.nombre ?? "-",
+    vendedor_id: c.vendedor_id ?? null,
+    vendedor: c.vendedores?.nombre ?? "Sin asignar",
   }));
 
   return (
