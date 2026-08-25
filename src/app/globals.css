@@ -403,3 +403,17 @@ h3 { font-size: 1.05rem; margin: 0 0 var(--space-2); }
   background: var(--color-surface); color: var(--color-primary);
   box-shadow: var(--shadow-sm);
 }
+
+/* Título de grupo dentro del sidebar (solo escritorio) */
+.side-nav .nav-group {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  padding: 14px 12px 4px;
+  margin-top: 4px;
+}
+.side-nav .nav-group:first-child {
+  margin-top: 0;
+}
