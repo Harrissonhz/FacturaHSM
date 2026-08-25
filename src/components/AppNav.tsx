@@ -2,7 +2,7 @@
 
 // ---------------------------------------------------------------------
 // Navegacion de la app (movil: bottom nav / escritorio: sidebar).
-// Items de admin: Compras, Producción, Distribución, Retorno, Reportes, Catálogos.
+// Admin: Compras, Producción, Distribución, Retorno, Clientes, Reportes, Catálogos.
 // En movil: 4 principales + "Más" (admin) que agrupa el resto.
 // ---------------------------------------------------------------------
 import Link from "next/link";
@@ -19,6 +19,7 @@ const ITEMS: Item[] = [
   { href: "/produccion", label: "Producción", icon: "🏭", roles: ["admin"] },
   { href: "/distribucion", label: "Distribución", icon: "🚚", roles: ["admin"] },
   { href: "/retorno", label: "Retorno", icon: "↩️", roles: ["admin"] },
+  { href: "/clientes", label: "Clientes", icon: "🧑‍🤝‍🧑", roles: ["admin"] },
   { href: "/reportes", label: "Reportes", icon: "📊", roles: ["admin"] },
   { href: "/catalogos", label: "Catálogos", icon: "⚙️", roles: ["admin"] },
 ];
@@ -38,7 +39,6 @@ export default function AppNav({ rol }: { rol?: string }) {
 
   return (
     <>
-      {/* Sidebar (escritorio) - todos los items */}
       <nav className="side-nav" aria-label="Navegacion principal">
         {visibles.map((it) => (
           <Link key={it.href} href={it.href} className={isActive(it.href) ? "active" : ""}>
@@ -48,7 +48,6 @@ export default function AppNav({ rol }: { rol?: string }) {
         ))}
       </nav>
 
-      {/* Bottom nav (movil) - principales + Más */}
       <nav className="bottom-nav" aria-label="Navegacion principal">
         {bottom.map((it) => (
           <Link key={it.href} href={it.href} className={isActive(it.href) ? "active" : ""}>
