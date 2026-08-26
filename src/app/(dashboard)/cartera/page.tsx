@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------
-// Pantalla de Cartera (Server Component) - Fase 2.
-// Lista las cuentas por cobrar y delega en CarteraTabla (cliente) el
-// resumen, filtros, tarjetas y el bottom sheet de abonos.
+// Pantalla de Cartera (Server Component).
+// Lista cuentas por cobrar; delega en CarteraTabla el resumen, la
+// búsqueda (cliente/factura), filtros, tarjetas y el bottom sheet de abonos.
 // ---------------------------------------------------------------------
 import { createClient } from "@/lib/supabase/server";
 import CarteraTabla from "./CarteraTabla";
@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 export type CuentaCxC = {
   id: string;
+  cliente_id: string;
   factura: string;
   cliente: string;
   vendedor: string;
@@ -27,7 +28,7 @@ export default async function CarteraPage() {
   const { data, error } = await supabase
     .from("cuentas_por_cobrar")
     .select(
-      "id, fecha_venta, fecha_vencimiento, valor_original, total_abonado, saldo_pendiente, estado, " +
+      "id, cliente_id, fecha_venta, fecha_vencimiento, valor_original, total_abonado, saldo_pendiente, estado, " +
         "facturas(numero), clientes(nombre), vendedores(nombre)"
     )
     .order("fecha_venta", { ascending: false });
@@ -35,6 +36,7 @@ export default async function CarteraPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cuentas: CuentaCxC[] = (data ?? []).map((r: any) => ({
     id: r.id,
+    cliente_id: r.cliente_id,
     factura: r.facturas?.numero ?? "-",
     cliente: r.clientes?.nombre ?? "-",
     vendedor: r.vendedores?.nombre ?? "-",
@@ -49,12 +51,10 @@ export default async function CarteraPage() {
   return (
     <main>
       <h1>Cartera</h1>
-      <p className="muted">Consulta saldos y registra abonos parciales.</p>
+      <p className="muted">Consulta saldos, registra abonos y genera estados de cuenta.</p>
 
       {error && (
-        <div className="alert alert-danger">
-          Error al cargar la cartera: {error.message}
-        </div>
+        <div className="alert alert-danger">Error al cargar la cartera: {error.message}</div>
       )}
 
       {cuentas.length === 0 ? (

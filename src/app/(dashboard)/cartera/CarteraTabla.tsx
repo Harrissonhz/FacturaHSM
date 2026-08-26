@@ -1,11 +1,12 @@
 "use client";
 
 // ---------------------------------------------------------------------
-// Cartera (Client Component) - Fase 2 rediseñado.
+// Cartera (Client Component).
 // - Resumen (chips) de saldo total y # cuentas.
-// - Filtro por estado (segmento).
-// - Lista de tarjetas (mobile-first, sin scroll horizontal).
+// - BÚSQUEDA por cliente o factura + filtro por estado.
+// - Lista de tarjetas (mobile-first).
 // - Registro de abono en bottom sheet.
+// - Botón "Estado de cuenta" por cliente (documento imprimible).
 // ---------------------------------------------------------------------
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -18,27 +19,26 @@ type Filtro = "TODAS" | "PENDIENTES" | "VENCIDAS";
 export default function CarteraTabla({ cuentas }: { cuentas: CuentaCxC[] }) {
   const router = useRouter();
   const [filtro, setFiltro] = useState<Filtro>("TODAS");
+  const [buscar, setBuscar] = useState("");
   const [seleccion, setSeleccion] = useState<CuentaCxC | null>(null);
   const [monto, setMonto] = useState<number>(0);
   const [formaPago, setFormaPago] = useState("EFECTIVO");
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
-  // Totales para los chips de resumen
-  const totalSaldo = useMemo(
-    () => cuentas.reduce((s, c) => s + c.saldo_pendiente, 0),
-    [cuentas]
-  );
-  const pendientes = useMemo(
-    () => cuentas.filter((c) => c.estado !== "PAGADA").length,
-    [cuentas]
-  );
+  const totalSaldo = useMemo(() => cuentas.reduce((s, c) => s + c.saldo_pendiente, 0), [cuentas]);
+  const pendientes = useMemo(() => cuentas.filter((c) => c.estado !== "PAGADA").length, [cuentas]);
 
   const visibles = useMemo(() => {
-    if (filtro === "PENDIENTES") return cuentas.filter((c) => c.estado === "PENDIENTE" || c.estado === "PARCIAL");
-    if (filtro === "VENCIDAS") return cuentas.filter((c) => c.estado === "VENCIDA");
-    return cuentas;
-  }, [cuentas, filtro]);
+    let arr = cuentas;
+    // Filtro por estado
+    if (filtro === "PENDIENTES") arr = arr.filter((c) => c.estado === "PENDIENTE" || c.estado === "PARCIAL");
+    else if (filtro === "VENCIDAS") arr = arr.filter((c) => c.estado === "VENCIDA");
+    // Búsqueda por cliente o factura
+    const q = buscar.trim().toLowerCase();
+    if (q) arr = arr.filter((c) => c.cliente.toLowerCase().includes(q) || c.factura.toLowerCase().includes(q));
+    return arr;
+  }, [cuentas, filtro, buscar]);
 
   function abrirAbono(c: CuentaCxC) {
     setSeleccion(c);
@@ -60,10 +60,7 @@ export default function CarteraTabla({ cuentas }: { cuentas: CuentaCxC[] }) {
       if (!json.ok) {
         setMensaje({ tipo: "error", texto: json.error?.message ?? "Error al registrar el abono." });
       } else {
-        setMensaje({
-          tipo: "ok",
-          texto: `Abono registrado. Nuevo saldo: ${money(json.data.saldo_pendiente)} · ${json.data.estado}`,
-        });
+        setMensaje({ tipo: "ok", texto: `Abono registrado. Nuevo saldo: ${money(json.data.saldo_pendiente)} · ${json.data.estado}` });
         setSeleccion(null);
         router.refresh();
       }
@@ -77,9 +74,7 @@ export default function CarteraTabla({ cuentas }: { cuentas: CuentaCxC[] }) {
   return (
     <>
       {mensaje && (
-        <div className={`alert ${mensaje.tipo === "ok" ? "alert-success" : "alert-danger"}`}>
-          {mensaje.texto}
-        </div>
+        <div className={`alert ${mensaje.tipo === "ok" ? "alert-success" : "alert-danger"}`}>{mensaje.texto}</div>
       )}
 
       {/* Resumen */}
@@ -94,24 +89,28 @@ export default function CarteraTabla({ cuentas }: { cuentas: CuentaCxC[] }) {
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="segment" role="tablist">
-        <button className={filtro === "TODAS" ? "active" : ""} onClick={() => setFiltro("TODAS")}>
-          Todas
-        </button>
-        <button className={filtro === "PENDIENTES" ? "active" : ""} onClick={() => setFiltro("PENDIENTES")}>
-          Pendientes
-        </button>
-        <button className={filtro === "VENCIDAS" ? "active" : ""} onClick={() => setFiltro("VENCIDAS")}>
-          Vencidas
-        </button>
+      {/* Búsqueda por cliente o factura */}
+      <div className="field" style={{ marginBottom: 12 }}>
+        <input
+          className="input"
+          placeholder="Buscar por cliente o factura..."
+          value={buscar}
+          onChange={(e) => setBuscar(e.target.value)}
+        />
       </div>
 
-      {/* Lista de tarjetas */}
+      {/* Filtros por estado */}
+      <div className="segment" role="tablist">
+        <button className={filtro === "TODAS" ? "active" : ""} onClick={() => setFiltro("TODAS")}>Todas</button>
+        <button className={filtro === "PENDIENTES" ? "active" : ""} onClick={() => setFiltro("PENDIENTES")}>Pendientes</button>
+        <button className={filtro === "VENCIDAS" ? "active" : ""} onClick={() => setFiltro("VENCIDAS")}>Vencidas</button>
+      </div>
+
+      {/* Lista */}
       {visibles.length === 0 ? (
         <div className="empty-state">
           <span className="emoji">💰</span>
-          No hay cuentas en esta categoría.
+          No hay cuentas que coincidan con la búsqueda.
         </div>
       ) : (
         <div className="list-cards">
@@ -126,24 +125,21 @@ export default function CarteraTabla({ cuentas }: { cuentas: CuentaCxC[] }) {
               </div>
 
               <div className="row" style={{ marginTop: "var(--space-3)" }}>
-                <div className="sub">
-                  Abonado: {money(c.total_abonado)} / {money(c.valor_original)}
-                </div>
+                <div className="sub">Abonado: {money(c.total_abonado)} / {money(c.valor_original)}</div>
                 <div style={{ textAlign: "right" }}>
                   <div className="sub">Saldo</div>
                   <div className="amount amount-lg">{money(c.saldo_pendiente)}</div>
                 </div>
               </div>
 
-              {c.estado !== "PAGADA" && (
-                <button
-                  className="btn btn-success btn-full btn-sm"
-                  style={{ marginTop: "var(--space-3)" }}
-                  onClick={() => abrirAbono(c)}
-                >
-                  Registrar abono
-                </button>
-              )}
+              <div style={{ display: "flex", gap: 8, marginTop: "var(--space-3)", flexWrap: "wrap" }}>
+                {c.estado !== "PAGADA" && (
+                  <button className="btn btn-success btn-sm" onClick={() => abrirAbono(c)}>Registrar abono</button>
+                )}
+                <a className="btn btn-secondary btn-sm" href={`/cartera/estado/${c.cliente_id}`}>
+                  📄 Estado de cuenta
+                </a>
+              </div>
             </div>
           ))}
         </div>
@@ -155,9 +151,7 @@ export default function CarteraTabla({ cuentas }: { cuentas: CuentaCxC[] }) {
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="handle" />
             <h3 style={{ marginTop: 0 }}>Registrar abono</h3>
-            <p className="muted" style={{ marginTop: 0 }}>
-              {seleccion.cliente} · Factura {seleccion.factura}
-            </p>
+            <p className="muted" style={{ marginTop: 0 }}>{seleccion.cliente} · Factura {seleccion.factura}</p>
 
             <div className="list-item" style={{ boxShadow: "none", marginBottom: "var(--space-4)" }}>
               <div className="row">
@@ -168,28 +162,13 @@ export default function CarteraTabla({ cuentas }: { cuentas: CuentaCxC[] }) {
 
             <div className="field">
               <label htmlFor="monto">Monto del abono</label>
-              <input
-                id="monto"
-                className="input tabular"
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={seleccion.saldo_pendiente}
-                value={monto}
-                onChange={(e) =>
-                  setMonto(Math.max(0, Math.min(seleccion.saldo_pendiente, Number(e.target.value))))
-                }
-              />
+              <input id="monto" className="input tabular" type="number" inputMode="numeric" min={1} max={seleccion.saldo_pendiente} value={monto}
+                onChange={(e) => setMonto(Math.max(0, Math.min(seleccion.saldo_pendiente, Number(e.target.value))))} />
             </div>
 
             <div className="field">
               <label htmlFor="forma">Forma de pago</label>
-              <select
-                id="forma"
-                className="select"
-                value={formaPago}
-                onChange={(e) => setFormaPago(e.target.value)}
-              >
+              <select id="forma" className="select" value={formaPago} onChange={(e) => setFormaPago(e.target.value)}>
                 <option value="EFECTIVO">Efectivo</option>
                 <option value="CONSIGNACION">Consignación</option>
                 <option value="TRANSFERENCIA">Transferencia</option>
@@ -198,20 +177,10 @@ export default function CarteraTabla({ cuentas }: { cuentas: CuentaCxC[] }) {
             </div>
 
             <div style={{ display: "flex", gap: "var(--space-3)", marginTop: "var(--space-4)" }}>
-              <button
-                className="btn btn-success btn-full"
-                onClick={registrarAbono}
-                disabled={loading || monto <= 0}
-              >
+              <button className="btn btn-success btn-full" onClick={registrarAbono} disabled={loading || monto <= 0}>
                 {loading ? "Registrando..." : `Confirmar ${money(monto)}`}
               </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => setSeleccion(null)}
-                disabled={loading}
-              >
-                Cancelar
-              </button>
+              <button className="btn btn-secondary" onClick={() => setSeleccion(null)} disabled={loading}>Cancelar</button>
             </div>
           </div>
         </div>

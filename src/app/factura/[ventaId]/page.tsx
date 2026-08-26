@@ -1,9 +1,7 @@
 // ---------------------------------------------------------------------
 // Vista de Factura imprimible/descargable (Server Component).
 // Ruta: /factura/[ventaId]
-// Carga emisor (empresa_config), venta, detalle, cliente y vendedor,
-// y renderiza una factura profesional lista para imprimir / guardar PDF.
-// Flexible: agregar campos futuros es solo editar esta plantilla.
+// Ahora incluye LOGO del emisor (empresa_config.logo_url) si está definido.
 // ---------------------------------------------------------------------
 import { createClient } from "@/lib/supabase/server";
 import { money, fecha } from "@/lib/format";
@@ -20,13 +18,11 @@ export default async function FacturaPage({
   const supabase = createClient();
   const ventaId = params.ventaId;
 
-  // 1. Emisor (datos de la empresa)
   const { data: emisor } = await supabase
     .from("empresa_config")
-    .select("razon_social, nit, direccion, ciudad, telefono, email, pie_factura")
+    .select("razon_social, nit, direccion, ciudad, telefono, email, pie_factura, logo_url")
     .single();
 
-  // 2. Venta + cliente + vendedor
   const { data: venta } = await supabase
     .from("ventas")
     .select(
@@ -37,21 +33,18 @@ export default async function FacturaPage({
     .eq("id", ventaId)
     .single();
 
-  // 3. Factura (numero, fecha)
   const { data: factura } = await supabase
     .from("facturas")
-    .select("numero, fecha")
+    .select("id, numero, fecha")
     .eq("venta_id", ventaId)
     .single();
 
-  // 4. Cuenta por cobrar (vencimiento) - opcional
   const { data: cxc } = await supabase
     .from("cuentas_por_cobrar")
     .select("fecha_vencimiento, dias_credito")
-    .eq("factura_id", (await supabase.from("facturas").select("id").eq("venta_id", ventaId).single()).data?.id ?? "")
+    .eq("factura_id", factura?.id ?? "")
     .maybeSingle();
 
-  // 5. Detalle de productos
   const { data: detalle } = await supabase
     .from("ventas_detalle")
     .select("cantidad, precio_unitario, subtotal, variantes(sku, referencia), calidades(codigo)")
@@ -60,10 +53,7 @@ export default async function FacturaPage({
   if (!venta || !factura) {
     return (
       <main className="container" style={{ padding: 24 }}>
-        <div className="empty-state">
-          <span className="emoji">🧾</span>
-          No se encontró la factura solicitada.
-        </div>
+        <div className="empty-state"><span className="emoji">🧾</span>No se encontró la factura solicitada.</div>
       </main>
     );
   }
@@ -77,24 +67,27 @@ export default async function FacturaPage({
 
   return (
     <main className="factura-wrap">
-      {/* Barra de acciones (no se imprime) */}
       <div className="factura-actions no-print">
         <a href="/ventas" className="btn btn-secondary">← Volver</a>
         <PrintButton />
       </div>
 
-      {/* Documento */}
       <div className="factura-doc" id="factura">
-        {/* Encabezado: emisor */}
         <header className="factura-header">
-          <div>
-            <h1 className="emisor-nombre">{emisor?.razon_social ?? "HSM Confecciones"}</h1>
-            <div className="emisor-datos">
-              {emisor?.nit && <div>NIT: {emisor.nit}</div>}
-              {emisor?.direccion && <div>{emisor.direccion}</div>}
-              {emisor?.ciudad && <div>{emisor.ciudad}</div>}
-              {emisor?.telefono && <div>Tel: {emisor.telefono}</div>}
-              {emisor?.email && <div>{emisor.email}</div>}
+          <div className="factura-emisor">
+            {emisor?.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={emisor.logo_url} alt="Logo" className="factura-logo" />
+            ) : null}
+            <div>
+              <h1 className="emisor-nombre">{emisor?.razon_social ?? "HSM Confecciones"}</h1>
+              <div className="emisor-datos">
+                {emisor?.nit && <div>NIT: {emisor.nit}</div>}
+                {emisor?.direccion && <div>{emisor.direccion}</div>}
+                {emisor?.ciudad && <div>{emisor.ciudad}</div>}
+                {emisor?.telefono && <div>Tel: {emisor.telefono}</div>}
+                {emisor?.email && <div>{emisor.email}</div>}
+              </div>
             </div>
           </div>
           <div className="factura-meta">
@@ -104,15 +97,12 @@ export default async function FacturaPage({
               <tbody>
                 <tr><td>Fecha</td><td>{fecha(factura.fecha)}</td></tr>
                 <tr><td>Forma de pago</td><td>{v.tipo_pago === "CREDITO" ? "Crédito" : "Contado"}</td></tr>
-                {cxc?.fecha_vencimiento && (
-                  <tr><td>Vence</td><td>{fecha(cxc.fecha_vencimiento)}</td></tr>
-                )}
+                {cxc?.fecha_vencimiento && <tr><td>Vence</td><td>{fecha(cxc.fecha_vencimiento)}</td></tr>}
               </tbody>
             </table>
           </div>
         </header>
 
-        {/* Cliente */}
         <section className="factura-cliente">
           <h2>Cliente</h2>
           <div className="cliente-grid">
@@ -124,16 +114,12 @@ export default async function FacturaPage({
           </div>
         </section>
 
-        {/* Productos */}
         <section>
           <table className="factura-items">
             <thead>
               <tr>
-                <th>Referencia</th>
-                <th>Calidad</th>
-                <th className="num">Cant.</th>
-                <th className="num">Precio unit.</th>
-                <th className="num">Subtotal</th>
+                <th>Referencia</th><th>Calidad</th>
+                <th className="num">Cant.</th><th className="num">Precio unit.</th><th className="num">Subtotal</th>
               </tr>
             </thead>
             <tbody>
@@ -150,7 +136,6 @@ export default async function FacturaPage({
           </table>
         </section>
 
-        {/* Totales */}
         <section className="factura-totales">
           <table>
             <tbody>
@@ -158,17 +143,12 @@ export default async function FacturaPage({
               {Number(v.descuento) > 0 && (
                 <tr><td>Descuento</td><td className="num">- {money(Number(v.descuento))}</td></tr>
               )}
-              <tr className="total-row">
-                <td>TOTAL</td><td className="num">{money(Number(v.total))}</td>
-              </tr>
+              <tr className="total-row"><td>TOTAL</td><td className="num">{money(Number(v.total))}</td></tr>
             </tbody>
           </table>
         </section>
 
-        {/* Pie */}
-        {emisor?.pie_factura && (
-          <footer className="factura-pie">{emisor.pie_factura}</footer>
-        )}
+        {emisor?.pie_factura && <footer className="factura-pie">{emisor.pie_factura}</footer>}
       </div>
     </main>
   );

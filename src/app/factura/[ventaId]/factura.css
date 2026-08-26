@@ -167,3 +167,10 @@
   }
   .factura-items thead th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+/* ===== FACTURA: estilos de LOGO (agregar al final de factura.css) ===== */
+.factura-emisor { display: flex; gap: 16px; align-items: flex-start; }
+.factura-logo { width: 72px; height: 72px; object-fit: contain; border-radius: 8px; }
+
+@media (max-width: 560px) {
+  .factura-emisor { flex-direction: column; }
+}
