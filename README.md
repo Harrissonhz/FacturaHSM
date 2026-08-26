@@ -1,72 +1,70 @@
 # FacturacionHSM
 
-> Sistema POS con inventario por estados, producción/maquila, distribución por vendedores, ventas a crédito y cartera.
-> Diseñado bajo el marco **SDD (Spec Driven Development)** para ser genérico y reutilizable dentro del SaaS **Kubit**.
+> Sistema POS con inventario por estados, producción/maquila, distribución por vendedores, ventas a crédito, cartera y reportes. Construido bajo **SDD (Spec Driven Development)**, multi-tenant (SaaS Kubit), desplegado en Vercel + Supabase.
+
+**Estado:** MVP funcional en producción. Ver [`docs/12-estado-actual-implementacion.md`](docs/12-estado-actual-implementacion.md).
 
 ---
 
-## 1. Qué es este repositorio
-
-Este repositorio contiene **toda la especificación técnica y funcional** del proyecto *FacturacionHSM* **antes** de escribir una sola línea de código de producción.
-
-El objetivo es que **cualquier modelo de IA o desarrollador** que se conecte a este repositorio tenga el **contexto completo** y el **plan de implementación** sin necesidad de explicaciones adicionales.
-
-Todo está escrito en Markdown para poder copiar/pegar, versionar en Git y evolucionar de forma incremental.
-
-## 2. Stack tecnológico objetivo
+## Stack
 
 | Capa | Tecnología |
 |------|-----------|
-| Repositorio / versionado | **GitHub** |
-| Hosting / despliegue frontend | **Vercel** |
-| Base de datos + Auth + Storage | **Supabase** (PostgreSQL + Row Level Security + Storage) |
-| Frontend | **Next.js (React) + TypeScript** |
-| API | **Next.js Route Handlers / Server Actions** + Supabase JS Client |
-| Generación de PDF | Librería de PDF en servidor (ej. `@react-pdf/renderer` o `pdf-lib`) |
-| Multi-tenant (SaaS Kubit) | `tenant_id` en todas las tablas + políticas RLS |
+| Frontend + Backend | Next.js 14 (App Router) + TypeScript |
+| Base de datos / Auth | Supabase (PostgreSQL + RLS) |
+| Hosting | Vercel |
+| PWA | Instalable (service worker nativo) |
 
-## 3. Índice de la documentación (orden de lectura sugerido)
+## Puesta en marcha
 
-| # | Archivo | Contenido |
-|---|---------|-----------|
-| 00 | [`docs/00-CONSTITUTION.md`](docs/00-CONSTITUTION.md) | Principios no negociables del proyecto (SDD). |
-| 01 | [`docs/01-contexto-y-alcance.md`](docs/01-contexto-y-alcance.md) | Contexto de negocio, alcance, glosario y prioridades. |
-| 02 | [`docs/02-arquitectura.md`](docs/02-arquitectura.md) | Arquitectura técnica, capas, multi-tenant, seguridad. |
-| 03 | [`docs/03-modelo-de-datos.md`](docs/03-modelo-de-datos.md) | Modelo de datos completo + DDL SQL para Supabase. |
-| 04 | [`docs/04-flujos-de-negocio.md`](docs/04-flujos-de-negocio.md) | Flujos actuales y propuestos (compra → cartera). |
-| 05 | [`docs/05-especificacion-funcional.md`](docs/05-especificacion-funcional.md) | Épicas, historias de usuario y pantallas. |
-| 06 | [`docs/06-api-endpoints.md`](docs/06-api-endpoints.md) | Contratos de API / servicios. |
-| 07 | [`docs/07-reglas-y-validaciones.md`](docs/07-reglas-y-validaciones.md) | Reglas de negocio y validaciones. |
-| 08 | [`docs/08-plan-de-pruebas.md`](docs/08-plan-de-pruebas.md) | Set de pruebas de regresión (ejecutar en cada cambio). |
-| 09 | [`docs/09-plan-de-implementacion.md`](docs/09-plan-de-implementacion.md) | Plan por fases, tareas y criterios de aceptación. |
-| 10 | [`docs/10-riesgos-y-escalabilidad.md`](docs/10-riesgos-y-escalabilidad.md) | Riesgos técnicos/funcionales y recomendaciones. |
-
-## 4. Concepto central del diseño
-
-Dos dimensiones **independientes** que nunca se deben confundir:
-
-- **ESTADO / ETAPA del proceso** → `CRUDO → EN_PRODUCCION → TERMINADO → EMPACADO/LISTO`
-- **CALIDAD / CONDICIÓN del producto** → `PRIMERA → SEGUNDA → MERMA`
-
-El inventario es un **saldo por combinación** de: `variante (referencia/talla/color) × ubicación × estado × calidad`, respaldado por un **libro mayor inmutable de movimientos** (`movimientos_inventario`) que garantiza trazabilidad y auditoría total.
-
-## 5. Flujo de negocio de extremo a extremo
-
-```
-Compra → Recepción (parcial) → Inventario CRUDO → Producción/Maquila →
-Producto TERMINADO (Primera/Segunda/Merma) → Empacado/LISTO →
-Distribución a vendedores → Venta a crédito → Factura PDF →
-Cuenta por cobrar → Abonos parciales → Saldo → Pago total (CANCELADA)
+```bash
+npm install
+cp .env.example .env.local     # completa las claves de Supabase
+npm run dev                    # http://localhost:3000
 ```
 
-## 6. Cómo trabajar bajo SDD
+Variables (`.env.local`):
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
 
-1. **Specify** → Los documentos `01`–`07` son la *especificación*.
-2. **Plan** → El documento `09` es el *plan* técnico por fases.
-3. **Tasks** → Cada fase del `09` se descompone en tareas atómicas.
-4. **Implement** → Se codifica una tarea a la vez, ejecutando el set de pruebas del `08` en cada cambio.
-5. Ninguna decisión de código puede contradecir `00-CONSTITUTION.md`.
+## Documentación (orden de lectura)
+
+| # | Documento | Contenido |
+|---|-----------|-----------|
+| 00 | `docs/00-CONSTITUTION.md` | Principios no negociables |
+| 01 | `docs/01-contexto-y-alcance.md` | Negocio, alcance, glosario |
+| 02 | `docs/02-arquitectura.md` | Arquitectura y capas |
+| 03 | `docs/03-modelo-de-datos.md` | Modelo de datos + DDL |
+| 03b | `docs/03b-modelo-de-datos-addendum.md` | Cambios durante la implementación |
+| 04 | `docs/04-flujos-de-negocio.md` | Flujos (compra→cartera) |
+| 05 | `docs/05-especificacion-funcional.md` | Épicas e historias |
+| 06 | `docs/06-api-endpoints.md` | Contratos / RPC |
+| 07 | `docs/07-reglas-y-validaciones.md` | Reglas de negocio |
+| 08 | `docs/08-plan-de-pruebas.md` | Set de pruebas |
+| 09 | `docs/09-plan-de-implementacion.md` | Plan por fases |
+| 10 | `docs/10-riesgos-y-escalabilidad.md` | Riesgos y escalabilidad |
+| 11 | `docs/11-diseno-frontend-y-pwa.md` | Diseño, UX/UI y PWA |
+| **12** | `docs/12-estado-actual-implementacion.md` | **Estado actual (leer para retomar)** |
+| **13** | `docs/13-mapa-de-codigo.md` | **Estructura del código** |
+
+## Ciclo de negocio (operativo end-to-end)
+
+```
+Compra → Recepción (parcial) → CRUDO → Producción (primera/segunda/merma)
+→ Empaque → LISTO → Distribución al vendedor → Venta a crédito → Factura PDF
+→ Cartera → Abonos → Estado de cuenta → (Retorno de lo no vendido al central)
+```
+
+## Módulos implementados
+
+Catálogos (productos, variantes, vendedores, proveedores, clientes) · Compras + recepción · Producción/maquila · Distribución + retorno · Ventas (POS) + factura PDF · Cartera + abonos + estado de cuenta · Reportes (inventario, ventas, cartera avanzada con aging/KPIs/export, trazabilidad) · Anular venta · Ajuste de inventario · PWA instalable.
+
+## Pendiente (post-MVP)
+
+Roles finos (7.3) · Auditoría avanzada (7.4). Ver `docs/12`.
 
 ---
 
-**Propietario:** Harrisson Zapata Gómez · **Producto:** SaaS Kubit · **Estado:** Especificación (pre-código)
+**Propietario:** Harrisson Zapata Gómez · **Producto:** SaaS Kubit
