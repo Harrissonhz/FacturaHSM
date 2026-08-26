@@ -417,3 +417,19 @@ h3 { font-size: 1.05rem; margin: 0 0 var(--space-2); }
 .side-nav .nav-group:first-child {
   margin-top: 0;
 }
+
+/* ===== REPORTE CARTERA: impresión (agregar al final de globals.css) =====
+   Nota: si ya agregaste reglas @media print para .no-print, .app-header,
+   .bottom-nav y .side-nav en otro documento, estas se complementan. */
+@media print {
+  .no-print { display: none !important; }
+  .app-header, .bottom-nav, .side-nav, .offline-banner { display: none !important; }
+  body { background: #fff !important; }
+  #reporte-cartera .summary-chip,
+  #reporte-cartera .card,
+  #reporte-cartera .list-item {
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

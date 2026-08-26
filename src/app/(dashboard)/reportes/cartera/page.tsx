@@ -1,25 +1,55 @@
-// Reporte: Cartera por cliente/vendedor/factura (usa v_cartera_cliente).
+// ---------------------------------------------------------------------
+// Reporte de Cartera (Server Component).
+// Carga TODAS las cuentas por cobrar con cliente, vendedor, municipio,
+// fechas y montos; delega el análisis (filtros, agrupación, aging, KPIs,
+// export) al componente cliente ReporteCarteraClient.
+// ---------------------------------------------------------------------
 import { createClient } from "@/lib/supabase/server";
-import { money, fecha } from "@/lib/format";
-import EstadoBadge from "@/components/EstadoBadge";
+import ReporteCarteraClient from "./ReporteCarteraClient";
 
 export const dynamic = "force-dynamic";
+
+export type CuentaRep = {
+  id: string;
+  cliente_id: string;
+  cliente: string;
+  vendedor: string;
+  municipio: string;
+  factura: string;
+  fecha_venta: string;
+  fecha_vencimiento: string | null;
+  valor_original: number;
+  total_abonado: number;
+  saldo_pendiente: number;
+  estado: string;
+};
 
 export default async function ReporteCarteraPage() {
   const supabase = createClient();
 
   const { data, error } = await supabase
-    .from("v_cartera_cliente")
-    .select("cliente, vendedor, factura, fecha_venta, fecha_vencimiento, valor_original, total_abonado, saldo_pendiente, estado_calculado")
-    .order("saldo_pendiente", { ascending: false });
+    .from("cuentas_por_cobrar")
+    .select(
+      "id, cliente_id, fecha_venta, fecha_vencimiento, valor_original, total_abonado, saldo_pendiente, estado, " +
+        "facturas(numero), clientes(nombre, municipio), vendedores(nombre)"
+    )
+    .order("fecha_venta", { ascending: false });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const filas = (data ?? []) as any[];
-
-  const totalSaldo = filas.reduce((s, f) => s + Number(f.saldo_pendiente ?? 0), 0);
-  const totalVencido = filas
-    .filter((f) => f.estado_calculado === "VENCIDA")
-    .reduce((s, f) => s + Number(f.saldo_pendiente ?? 0), 0);
+  const cuentas: CuentaRep[] = (data ?? []).map((r: any) => ({
+    id: r.id,
+    cliente_id: r.cliente_id,
+    cliente: r.clientes?.nombre ?? "-",
+    vendedor: r.vendedores?.nombre ?? "Sin vendedor",
+    municipio: r.clientes?.municipio ?? "Sin municipio",
+    factura: r.facturas?.numero ?? "-",
+    fecha_venta: r.fecha_venta,
+    fecha_vencimiento: r.fecha_vencimiento,
+    valor_original: Number(r.valor_original),
+    total_abonado: Number(r.total_abonado),
+    saldo_pendiente: Number(r.saldo_pendiente),
+    estado: r.estado,
+  }));
 
   return (
     <main>
@@ -30,51 +60,7 @@ export default async function ReporteCarteraPage() {
 
       {error && <div className="alert alert-danger">Error: {error.message}</div>}
 
-      <div className="summary-row">
-        <div className="summary-chip">
-          <div className="label">Saldo total por cobrar</div>
-          <div className="value">{money(totalSaldo)}</div>
-        </div>
-        <div className="summary-chip">
-          <div className="label">Saldo vencido</div>
-          <div className="value" style={{ color: totalVencido > 0 ? "var(--color-danger)" : undefined }}>
-            {money(totalVencido)}
-          </div>
-        </div>
-      </div>
-
-      {filas.length === 0 ? (
-        <div className="empty-state">
-          <span className="emoji">💰</span>
-          No hay cuentas por cobrar.
-        </div>
-      ) : (
-        <div className="list-cards">
-          {filas.map((f, i) => (
-            <div className="list-item" key={i}>
-              <div className="row">
-                <div>
-                  <div className="title">{f.cliente}</div>
-                  <div className="sub">
-                    Factura {f.factura} · {f.vendedor}
-                    {f.fecha_vencimiento ? ` · vence ${fecha(f.fecha_vencimiento)}` : ""}
-                  </div>
-                </div>
-                <EstadoBadge estado={f.estado_calculado} />
-              </div>
-              <div className="row" style={{ marginTop: 10 }}>
-                <div className="sub">
-                  Abonado: {money(Number(f.total_abonado))} / {money(Number(f.valor_original))}
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div className="sub">Saldo</div>
-                  <div className="amount">{money(Number(f.saldo_pendiente))}</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <ReporteCarteraClient cuentas={cuentas} />
     </main>
   );
 }
