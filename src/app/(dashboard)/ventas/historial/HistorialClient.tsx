@@ -1,7 +1,12 @@
 "use client";
 
-// Lista de ventas con acción "Anular" (bottom sheet con motivo).
-import { useState } from "react";
+// ---------------------------------------------------------------------
+// Historial de ventas.
+// - BÚSQUEDA por factura o cliente.
+// - Ver / reimprimir factura (abre /factura/[ventaId] → botón Imprimir/PDF).
+// - Anular venta (bottom sheet con motivo).
+// ---------------------------------------------------------------------
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { anularVenta } from "@/services/correcciones.actions";
 
@@ -12,11 +17,18 @@ type Venta = {
 
 export default function HistorialClient({ ventas }: { ventas: Venta[] }) {
   const router = useRouter();
+  const [buscar, setBuscar] = useState("");
   const [sel, setSel] = useState<Venta | null>(null);
   const [motivo, setMotivo] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+
+  const filtradas = useMemo(() => {
+    const q = buscar.trim().toLowerCase();
+    if (!q) return ventas;
+    return ventas.filter((v) => `${v.factura} ${v.cliente}`.toLowerCase().includes(q));
+  }, [ventas, buscar]);
 
   async function anular() {
     if (!sel) return;
@@ -40,11 +52,21 @@ export default function HistorialClient({ ventas }: { ventas: Venta[] }) {
     <>
       {okMsg && <div className="alert alert-success">{okMsg}</div>}
 
-      {ventas.length === 0 ? (
-        <div className="empty-state"><span className="emoji">🧾</span>Aún no hay ventas.</div>
+      {/* Búsqueda por factura o cliente */}
+      <div className="field" style={{ marginBottom: 12 }}>
+        <input
+          className="input"
+          placeholder="Buscar por factura o cliente..."
+          value={buscar}
+          onChange={(e) => setBuscar(e.target.value)}
+        />
+      </div>
+
+      {filtradas.length === 0 ? (
+        <div className="empty-state"><span className="emoji">🧾</span>No hay ventas que coincidan.</div>
       ) : (
         <div className="list-cards">
-          {ventas.map((v) => {
+          {filtradas.map((v) => {
             const anulada = v.estado === "ANULADA";
             return (
               <div className="list-item" key={v.id} style={{ opacity: anulada ? 0.6 : 1 }}>
@@ -58,21 +80,22 @@ export default function HistorialClient({ ventas }: { ventas: Venta[] }) {
                     <span className={`badge ${anulada ? "badge-danger" : "badge-success"}`}>{v.estado}</span>
                   </div>
                 </div>
-                {!anulada && (
-                  <button
-                    className="btn btn-danger btn-sm"
-                    style={{ marginTop: 10 }}
-                    onClick={() => { setSel(v); setMotivo(""); setError(null); }}
-                  >
-                    Anular venta
-                  </button>
-                )}
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  {/* Ver / reimprimir factura (regenera el PDF al abrir) */}
+                  <a className="btn btn-accent btn-sm" href={`/factura/${v.id}`}>🧾 Ver / imprimir factura</a>
+                  {!anulada && (
+                    <button className="btn btn-danger btn-sm" onClick={() => { setSel(v); setMotivo(""); setError(null); }}>
+                      Anular
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
       )}
 
+      {/* Bottom sheet anular */}
       {sel && (
         <div className="sheet-overlay" onClick={() => !loading && setSel(null)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>

@@ -1,9 +1,12 @@
 "use client";
 
 // ---------------------------------------------------------------------
-// POS de venta (Client Component) - con enlace a Factura PDF.
-// Mejora usabilidad: productos como LISTA VISIBLE con botón Agregar
-// (no hay que digitar). Buscador opcional para filtrar si hay muchos.
+// POS de venta (Client Component).
+// - Selector de cliente (todos los activos) + "Nuevo cliente".
+// - Productos disponibles como dropdown + carrito multi-producto.
+// - PRECIO UNITARIO EDITABLE por línea (para descuentos). Muestra el
+//   precio de lista y permite bajarlo/ajustarlo antes de facturar.
+// - Tras registrar, ofrece VER/IMPRIMIR la factura.
 // ---------------------------------------------------------------------
 import { useState, useMemo } from "react";
 import { money } from "@/lib/format";
@@ -16,7 +19,7 @@ type Item = {
   sku: string;
   calidad: string;
   cantidad: number;
-  precio: number;
+  precio: number; // precio de lista
 };
 type LineaCarrito = {
   key: string;
@@ -24,7 +27,8 @@ type LineaCarrito = {
   calidad_id: string;
   sku: string;
   calidad: string;
-  precio: number;
+  precioLista: number; // precio original (referencia)
+  precio: number;      // precio a facturar (editable)
   stock: number;
   cantidad: number;
 };
@@ -73,6 +77,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
           calidad_id: it.calidad_id,
           sku: it.sku,
           calidad: it.calidad,
+          precioLista: it.precio,
           precio: it.precio,
           stock: it.cantidad,
           cantidad: 1,
@@ -80,25 +85,24 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
       ];
     });
   }
+  function agregarSeleccionado() {
+    const it = items.find((x) => x.variante_id + x.calidad_id === prodSel);
+    if (it) agregarAlCarrito(it);
+  }
   function cambiarCantidad(key: string, delta: number) {
     setCarrito((prev) =>
       prev
         .map((l) =>
-          l.key === key
-            ? { ...l, cantidad: Math.max(0, Math.min(l.stock, l.cantidad + delta)) }
-            : l
+          l.key === key ? { ...l, cantidad: Math.max(0, Math.min(l.stock, l.cantidad + delta)) } : l
         )
         .filter((l) => l.cantidad > 0)
     );
   }
+  function cambiarPrecio(key: string, valor: number) {
+    setCarrito((prev) => prev.map((l) => (l.key === key ? { ...l, precio: Math.max(0, valor) } : l)));
+  }
   function quitar(key: string) {
     setCarrito((prev) => prev.filter((l) => l.key !== key));
-  }
-
-  // Agregar el producto elegido en el dropdown
-  function agregarSeleccionado() {
-    const it = items.find((x) => x.variante_id + x.calidad_id === prodSel);
-    if (it) agregarAlCarrito(it);
   }
 
   async function registrar() {
@@ -121,7 +125,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
             variante_id: l.variante_id,
             calidad_id: l.calidad_id,
             cantidad: l.cantidad,
-            precio_unitario: l.precio,
+            precio_unitario: l.precio, // precio (posiblemente con descuento)
           })),
         }),
       });
@@ -164,7 +168,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
     }
   }
 
-  // ---- Vista de exito ----
+  // ---- Vista de éxito ----
   if (resultado) {
     return (
       <div className="alert alert-success" style={{ padding: "var(--space-5)" }}>
@@ -190,9 +194,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3 style={{ margin: 0 }}>Cliente</h3>
-          <button className="btn btn-secondary btn-sm" onClick={() => setShowNuevoCliente(true)}>
-            + Nuevo
-          </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => setShowNuevoCliente(true)}>+ Nuevo</button>
         </div>
         <div className="field" style={{ marginTop: "var(--space-3)", marginBottom: 0 }}>
           {clientes.length === 0 ? (
@@ -200,43 +202,28 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
           ) : (
             <select className="select" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
               {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}{c.municipio ? ` · ${c.municipio}` : ""}
-                </option>
+                <option key={c.id} value={c.id}>{c.nombre}{c.municipio ? ` · ${c.municipio}` : ""}</option>
               ))}
             </select>
           )}
         </div>
         {clienteSel && (
-          <p className="sub" style={{ marginTop: "var(--space-2)", marginBottom: 0 }}>
-            Vendedor: {vendedor.nombre}
-          </p>
+          <p className="sub" style={{ marginTop: "var(--space-2)", marginBottom: 0 }}>Vendedor: {vendedor.nombre}</p>
         )}
       </div>
 
-      {/* Productos disponibles: DROPDOWN + botón Agregar (como Cliente) */}
+      {/* Productos disponibles: dropdown + Agregar */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Productos disponibles</h3>
-
         {items.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>
-            No tienes inventario disponible para vender.
-          </p>
+          <p className="muted" style={{ margin: 0 }}>No tienes inventario disponible para vender.</p>
         ) : (
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
             <div className="field" style={{ flex: 1, marginBottom: 0 }}>
               <label htmlFor="producto">Selecciona un producto</label>
-              <select
-                id="producto"
-                className="select"
-                value={prodSel}
-                onChange={(e) => setProdSel(e.target.value)}
-              >
+              <select id="producto" className="select" value={prodSel} onChange={(e) => setProdSel(e.target.value)}>
                 {items.map((it) => (
-                  <option
-                    key={it.variante_id + it.calidad_id}
-                    value={it.variante_id + it.calidad_id}
-                  >
+                  <option key={it.variante_id + it.calidad_id} value={it.variante_id + it.calidad_id}>
                     {it.sku} · {it.calidad} · {money(it.precio)} (disp: {it.cantidad})
                   </option>
                 ))}
@@ -247,31 +234,53 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
         )}
       </div>
 
-      {/* Carrito */}
+      {/* Carrito con PRECIO EDITABLE */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Carrito ({carrito.length})</h3>
         {carrito.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>Aún no has agregado productos.</p>
         ) : (
           <div className="list-cards">
-            {carrito.map((l) => (
-              <div className="list-item" key={l.key}>
-                <div className="row">
-                  <div>
-                    <div className="title">{l.sku}</div>
-                    <div className="sub">{money(l.precio)} · <EstadoBadge estado={l.calidad} /></div>
+            {carrito.map((l) => {
+              const conDescuento = l.precio < l.precioLista;
+              return (
+                <div className="list-item" key={l.key}>
+                  <div className="row">
+                    <div>
+                      <div className="title">{l.sku}</div>
+                      <div className="sub">
+                        <EstadoBadge estado={l.calidad} /> · Lista: {money(l.precioLista)}
+                        {conDescuento && <span style={{ color: "var(--color-warning)" }}> · con descuento</span>}
+                      </div>
+                    </div>
+                    <div className="amount">{money(l.precio * l.cantidad)}</div>
                   </div>
-                  <div className="amount">{money(l.precio * l.cantidad)}</div>
+
+                  {/* Precio unitario editable */}
+                  <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                    <div className="field" style={{ marginBottom: 0 }}>
+                      <label>Precio unitario</label>
+                      <input
+                        className="input tabular"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        value={l.precio}
+                        onChange={(e) => cambiarPrecio(l.key, Number(e.target.value))}
+                        style={{ width: 130 }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <button className="btn btn-secondary btn-sm" style={{ minWidth: 40, fontSize: "1.1rem" }} onClick={() => cambiarCantidad(l.key, -1)}>−</button>
+                      <span className="tabular" style={{ fontWeight: 700, minWidth: 24, textAlign: "center" }}>{l.cantidad}</span>
+                      <button className="btn btn-secondary btn-sm" style={{ minWidth: 40, fontSize: "1.1rem" }} onClick={() => cambiarCantidad(l.key, 1)} disabled={l.cantidad >= l.stock}>+</button>
+                      <span className="sub">/ {l.stock}</span>
+                    </div>
+                    <button className="btn btn-danger btn-sm" style={{ marginLeft: "auto" }} onClick={() => quitar(l.key)}>Quitar</button>
+                  </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginTop: "var(--space-3)" }}>
-                  <button className="btn btn-secondary btn-sm" style={{ minWidth: 44, fontSize: "1.2rem" }} onClick={() => cambiarCantidad(l.key, -1)}>−</button>
-                  <span className="tabular" style={{ fontWeight: 700, minWidth: 28, textAlign: "center" }}>{l.cantidad}</span>
-                  <button className="btn btn-secondary btn-sm" style={{ minWidth: 44, fontSize: "1.2rem" }} onClick={() => cambiarCantidad(l.key, 1)} disabled={l.cantidad >= l.stock}>+</button>
-                  <span className="sub">/ {l.stock}</span>
-                  <button className="btn btn-danger btn-sm" style={{ marginLeft: "auto" }} onClick={() => quitar(l.key)}>Quitar</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         <div style={{ marginTop: "var(--space-4)", display: "flex", justifyContent: "space-between", alignItems: "baseline", borderTop: "1px solid var(--color-border)", paddingTop: "var(--space-4)" }}>
