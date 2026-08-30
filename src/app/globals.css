@@ -433,3 +433,14 @@ h3 { font-size: 1.05rem; margin: 0 0 var(--space-2); }
     print-color-adjust: exact;
   }
 }
+/* ===== LOGIN: logo con imagen (agregar al final de src/app/globals.css) =====
+   Reemplaza visualmente el antiguo recuadro ".login-card .logo" (texto HSM).
+   Puedes dejar el estilo viejo; este nuevo aplica a la etiqueta <img>. */
+
+.login-logo {
+  display: block;
+  width: 120px;
+  height: auto;
+  margin: 0 auto var(--space-4);
+  object-fit: contain;
+}

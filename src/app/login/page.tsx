@@ -20,7 +20,10 @@ export default function LoginPage() {
   return (
     <main className="login-wrap">
       <div className="login-card">
-        <div className="logo">HSM</div>
+        {/* Logo real de la empresa (desde public/logo.png) */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="HSM Family Sport" className="login-logo" />
+
         <h1>FacturacionHSM</h1>
         <p className="muted">Inicia sesión para continuar</p>
 
