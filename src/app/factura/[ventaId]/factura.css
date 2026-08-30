@@ -174,3 +174,40 @@
 @media (max-width: 560px) {
   .factura-emisor { flex-direction: column; }
 }
+
+/* ===== FACTURA: sección Medios de pago (agregar al final de factura.css) ===== */
+.factura-pago {
+  margin-top: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #f8fafc;
+}
+.factura-pago h2 {
+  font-size: .8rem;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: #1e3a5f;
+  margin: 0 0 8px;
+}
+.pago-nota {
+  font-size: .82rem;
+  color: #64748b;
+  margin: 0 0 8px;
+}
+.pago-cuentas {
+  margin: 0;
+  padding-left: 18px;
+  font-size: .9rem;
+}
+.pago-cuentas li {
+  padding: 3px 0;
+}
+
+@media print {
+  .factura-pago {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    break-inside: avoid;
+  }
+}

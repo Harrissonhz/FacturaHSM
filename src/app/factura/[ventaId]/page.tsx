@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------
 // Vista de Factura imprimible/descargable (Server Component).
 // Ruta: /factura/[ventaId]
-// Ahora incluye LOGO del emisor (empresa_config.logo_url) si está definido.
+// Incluye LOGO del emisor y una sección de MEDIOS DE PAGO (cuentas
+// bancarias) parametrizable desde empresa_config.cuentas_bancarias.
 // ---------------------------------------------------------------------
 import { createClient } from "@/lib/supabase/server";
 import { money, fecha } from "@/lib/format";
@@ -20,7 +21,7 @@ export default async function FacturaPage({
 
   const { data: emisor } = await supabase
     .from("empresa_config")
-    .select("razon_social, nit, direccion, ciudad, telefono, email, pie_factura, logo_url")
+    .select("razon_social, nit, direccion, ciudad, telefono, email, pie_factura, logo_url, cuentas_bancarias")
     .single();
 
   const { data: venta } = await supabase
@@ -64,6 +65,12 @@ export default async function FacturaPage({
   const vendedorNombre = v.vendedores?.nombre ?? "-";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const lineas: any[] = detalle ?? [];
+
+  // Cuentas bancarias: cada línea es una cuenta
+  const cuentas = (emisor?.cuentas_bancarias ?? "")
+    .split("\n")
+    .map((l: string) => l.trim())
+    .filter((l: string) => l.length > 0);
 
   return (
     <main className="factura-wrap">
@@ -147,6 +154,19 @@ export default async function FacturaPage({
             </tbody>
           </table>
         </section>
+
+        {/* Medios de pago (cuentas bancarias) */}
+        {cuentas.length > 0 && (
+          <section className="factura-pago">
+            <h2>Medios de pago</h2>
+            <p className="pago-nota">Puede realizar su pago en cualquiera de las siguientes cuentas:</p>
+            <ul className="pago-cuentas">
+              {cuentas.map((c: string, i: number) => (
+                <li key={i}>{c}</li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {emisor?.pie_factura && <footer className="factura-pie">{emisor.pie_factura}</footer>}
       </div>
