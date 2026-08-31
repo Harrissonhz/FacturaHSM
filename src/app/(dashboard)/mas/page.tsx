@@ -1,4 +1,5 @@
 // Pantalla "Más": agrupa las funciones de administración (útil en móvil).
+// FASE 1: Distribución y Retorno ocultas (inventario central compartido).
 import { getPerfil } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 
@@ -11,8 +12,9 @@ export default async function MasPage() {
   const items = [
     { href: "/compras", icon: "🧾", label: "Compras", desc: "Compras y recepción de mercancía." },
     { href: "/produccion", icon: "🏭", label: "Producción", desc: "Transformar CRUDO en LISTO." },
-    { href: "/distribucion", icon: "🚚", label: "Distribución", desc: "Enviar inventario a vendedores." },
-    { href: "/retorno", icon: "↩️", label: "Retorno", desc: "Regresar lo no vendido al central." },
+    // OCULTAS EN FASE 1 (reactivar cuando se use distribución):
+    // { href: "/distribucion", icon: "🚚", label: "Distribución", desc: "Enviar inventario a vendedores." },
+    // { href: "/retorno", icon: "↩️", label: "Retorno", desc: "Regresar lo no vendido al central." },
     { href: "/clientes", icon: "🧑‍🤝‍🧑", label: "Clientes", desc: "Crear, editar e inactivar clientes." },
     { href: "/ventas/historial", icon: "🧾", label: "Historial de ventas", desc: "Consultar y anular ventas." },
     { href: "/inventario/ajuste", icon: "⚖️", label: "Ajuste de inventario", desc: "Corregir saldos con motivo." },
