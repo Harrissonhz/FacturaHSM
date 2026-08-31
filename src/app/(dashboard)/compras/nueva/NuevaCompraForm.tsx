@@ -1,66 +1,67 @@
 "use client";
 
-// Formulario de Nueva compra: proveedor + detalle. Número AUTOMÁTICO.
+// Nueva compra con SELECTOR EN CASCADA (Producto → Talla → Color, sin calidad).
+// Cada línea del carrito tiene cantidad y costo unitario editables.
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
 import { crearCompra } from "@/services/compras.actions";
+import SelectorCascada, { type Unidad } from "@/components/SelectorCascada";
 
 type Prov = { id: string; nombre: string };
-type Var = { id: string; sku: string; precio_base: number };
-type Linea = { variante_id: string; sku: string; cantidad: number; costo: number };
+type Var = {
+  key: string; variante_id: string; producto: string; talla: string; tallaOrden: number;
+  color: string; sku: string; precio: number;
+};
+type Linea = { key: string; variante_id: string; producto: string; talla: string; color: string; cantidad: number; costo: number };
 
 export default function NuevaCompraForm({
-  proveedores,
-  variantes,
+  proveedores, variantes,
 }: {
-  proveedores: Prov[];
-  variantes: Var[];
+  proveedores: Prov[]; variantes: Var[];
 }) {
   const router = useRouter();
   const [proveedorId, setProveedorId] = useState(proveedores[0]?.id ?? "");
   const [lineas, setLineas] = useState<Linea[]>([]);
-  const [varSel, setVarSel] = useState(variantes[0]?.id ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const unidades: Unidad[] = useMemo(
+    () => variantes.map((v) => ({
+      key: v.key, variante_id: v.variante_id, producto: v.producto,
+      talla: v.talla, tallaOrden: v.tallaOrden, color: v.color, sku: v.sku, precio: v.precio,
+    })),
+    [variantes]
+  );
+
   const total = useMemo(() => lineas.reduce((s, l) => s + l.cantidad * l.costo, 0), [lineas]);
 
-  function agregar() {
-    const v = variantes.find((x) => x.id === varSel);
-    if (!v) return;
-    if (lineas.some((l) => l.variante_id === v.id)) return;
-    setLineas((prev) => [...prev, { variante_id: v.id, sku: v.sku, cantidad: 1, costo: 0 }]);
+  function agregarUnidad(u: Unidad) {
+    if (lineas.some((l) => l.key === u.key)) return; // ya está
+    setLineas((prev) => [...prev, {
+      key: u.key, variante_id: u.variante_id, producto: u.producto, talla: u.talla, color: u.color,
+      cantidad: 1, costo: 0,
+    }]);
   }
-  function actualizar(id: string, campo: "cantidad" | "costo", valor: number) {
-    setLineas((prev) => prev.map((l) => (l.variante_id === id ? { ...l, [campo]: Math.max(0, valor) } : l)));
+  function actualizar(key: string, campo: "cantidad" | "costo", valor: number) {
+    setLineas((prev) => prev.map((l) => (l.key === key ? { ...l, [campo]: Math.max(0, valor) } : l)));
   }
-  function quitar(id: string) {
-    setLineas((prev) => prev.filter((l) => l.variante_id !== id));
+  function quitar(key: string) {
+    setLineas((prev) => prev.filter((l) => l.key !== key));
   }
 
   async function guardar() {
     setError(null);
-    if (!proveedorId) {
-      setError("Selecciona un proveedor.");
-      return;
-    }
-    if (lineas.length === 0) {
-      setError("Agrega al menos un producto.");
-      return;
-    }
+    if (!proveedorId) { setError("Selecciona un proveedor."); return; }
+    if (lineas.length === 0) { setError("Agrega al menos un producto."); return; }
     setLoading(true);
     const fd = new FormData();
     fd.set("proveedor_id", proveedorId);
     fd.set("items", JSON.stringify(lineas.map((l) => ({ variante_id: l.variante_id, cantidad: l.cantidad, costo: l.costo }))));
     const res = await crearCompra(fd);
     setLoading(false);
-    if (res.ok) {
-      router.push("/compras");
-      router.refresh();
-    } else {
-      setError(res.error ?? "No se pudo crear la compra.");
-    }
+    if (res.ok) { router.push("/compras"); router.refresh(); }
+    else setError(res.error ?? "No se pudo crear la compra.");
   }
 
   return (
@@ -69,48 +70,41 @@ export default function NuevaCompraForm({
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="proveedor">Proveedor *</label>
           <select id="proveedor" className="select" value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
-            {proveedores.map((p) => (
-              <option key={p.id} value={p.id}>{p.nombre}</option>
-            ))}
+            {proveedores.map((p) => (<option key={p.id} value={p.id}>{p.nombre}</option>))}
           </select>
         </div>
-        <p className="sub" style={{ marginTop: 10, marginBottom: 0 }}>
-          El número de compra se asigna automáticamente (OC-XXXXXX).
-        </p>
+        <p className="sub" style={{ marginTop: 10, marginBottom: 0 }}>El número de compra se asigna automáticamente (OC-XXXXXX).</p>
       </div>
 
+      {/* Selector en cascada (sin calidad) */}
       <div className="card">
-        <h3 style={{ marginTop: 0 }}>Productos</h3>
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-          <div className="field" style={{ flex: 1, marginBottom: 0 }}>
-            <label htmlFor="variante">Variante</label>
-            <select id="variante" className="select" value={varSel} onChange={(e) => setVarSel(e.target.value)}>
-              {variantes.map((v) => (
-                <option key={v.id} value={v.id}>{v.sku}</option>
-              ))}
-            </select>
-          </div>
-          <button className="btn" onClick={agregar}>Agregar</button>
-        </div>
+        <h3 style={{ marginTop: 0 }}>Agregar productos</h3>
+        <SelectorCascada unidades={unidades} onAgregar={agregarUnidad} />
+      </div>
 
-        {lineas.length > 0 && (
-          <div className="list-cards" style={{ marginTop: 16 }}>
+      {/* Carrito de compra */}
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Detalle de compra ({lineas.length})</h3>
+        {lineas.length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>Aún no has agregado productos.</p>
+        ) : (
+          <div className="list-cards">
             {lineas.map((l) => (
-              <div className="list-item" key={l.variante_id}>
+              <div className="list-item" key={l.key}>
                 <div className="row">
-                  <div className="title">{l.sku}</div>
-                  <button className="btn btn-danger btn-sm" onClick={() => quitar(l.variante_id)}>Quitar</button>
+                  <div className="title">{l.producto} · {l.talla} · {l.color}</div>
+                  <button className="btn btn-danger btn-sm" onClick={() => quitar(l.key)}>Quitar</button>
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
                   <div className="field" style={{ marginBottom: 0 }}>
                     <label>Cantidad</label>
                     <input className="input tabular" type="number" inputMode="numeric" min={1} value={l.cantidad}
-                      onChange={(e) => actualizar(l.variante_id, "cantidad", Number(e.target.value))} style={{ width: 110 }} />
+                      onChange={(e) => actualizar(l.key, "cantidad", Number(e.target.value))} style={{ width: 110 }} />
                   </div>
                   <div className="field" style={{ marginBottom: 0 }}>
                     <label>Costo unitario</label>
                     <input className="input tabular" type="number" inputMode="numeric" min={0} value={l.costo}
-                      onChange={(e) => actualizar(l.variante_id, "costo", Number(e.target.value))} style={{ width: 140 }} />
+                      onChange={(e) => actualizar(l.key, "costo", Number(e.target.value))} style={{ width: 140 }} />
                   </div>
                   <div style={{ marginLeft: "auto", textAlign: "right" }}>
                     <div className="sub">Subtotal</div>
@@ -121,7 +115,6 @@ export default function NuevaCompraForm({
             ))}
           </div>
         )}
-
         <div style={{ marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "baseline", borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
           <span className="muted">Total de la compra</span>
           <span className="amount amount-lg">{money(total)}</span>

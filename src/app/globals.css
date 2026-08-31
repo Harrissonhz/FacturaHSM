@@ -444,3 +444,58 @@ h3 { font-size: 1.05rem; margin: 0 0 var(--space-2); }
   margin: 0 auto var(--space-4);
   object-fit: contain;
 }
+
+/* ===== SELECTOR EN CASCADA (agregar al final de src/app/globals.css) ===== */
+
+/* Grid de productos (paso 1) */
+.cascada-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.cascada-card {
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 16px 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  cursor: pointer;
+  min-height: 60px;
+  text-align: center;
+  transition: border-color .12s, background .12s;
+}
+.cascada-card:active { transform: scale(.98); }
+.cascada-card.activo {
+  border-color: var(--color-primary);
+  background: var(--color-primary-050);
+  color: var(--color-primary);
+}
+
+/* Chips (tallas y colores) */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: .95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  min-height: 44px;
+}
+.chip:active { transform: scale(.97); }
+.chip.activo {
+  border-color: var(--color-primary);
+  background: var(--color-primary-050);
+  color: var(--color-primary);
+}
+/* Chip de color: acción de agregar (acento) */
+.chip-color {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 700;
+}
+.chip-color:hover { background: rgba(14,165,233,.08); }

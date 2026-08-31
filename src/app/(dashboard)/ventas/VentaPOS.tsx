@@ -1,36 +1,24 @@
 "use client";
 
 // ---------------------------------------------------------------------
-// POS de venta (Client Component).
-// - Selector de cliente (todos los activos) + "Nuevo cliente".
-// - Productos disponibles como dropdown + carrito multi-producto.
-// - PRECIO UNITARIO EDITABLE por línea (para descuentos). Muestra el
-//   precio de lista y permite bajarlo/ajustarlo antes de facturar.
-// - Tras registrar, ofrece VER/IMPRIMIR la factura.
+// POS de venta con SELECTOR EN CASCADA (Calidad → Producto → Talla → Color).
+// Precio unitario editable por línea. Carrito multi-producto.
 // ---------------------------------------------------------------------
 import { useState, useMemo } from "react";
 import { money } from "@/lib/format";
 import EstadoBadge from "@/components/EstadoBadge";
+import SelectorCascada, { type Unidad } from "@/components/SelectorCascada";
 
 type Cliente = { id: string; nombre: string; municipio: string | null };
 type Item = {
-  variante_id: string;
-  calidad_id: string;
-  sku: string;
-  calidad: string;
-  cantidad: number;
-  precio: number; // precio de lista
+  key: string; variante_id: string; calidad_id: string; calidad: string;
+  producto: string; talla: string; tallaOrden: number; color: string;
+  sku: string; cantidad: number; precio: number;
 };
 type LineaCarrito = {
-  key: string;
-  variante_id: string;
-  calidad_id: string;
-  sku: string;
-  calidad: string;
-  precioLista: number; // precio original (referencia)
-  precio: number;      // precio a facturar (editable)
-  stock: number;
-  cantidad: number;
+  key: string; variante_id: string; calidad_id: string; sku: string; calidad: string;
+  producto: string; talla: string; color: string;
+  precioLista: number; precio: number; stock: number; cantidad: number;
 };
 
 type Props = {
@@ -43,60 +31,42 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
   const [clientes, setClientes] = useState<Cliente[]>(clientesIniciales);
   const [clienteId, setClienteId] = useState<string>(clientesIniciales[0]?.id ?? "");
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
-
-  const [prodSel, setProdSel] = useState<string>(
-    items[0] ? items[0].variante_id + items[0].calidad_id : ""
-  );
   const [carrito, setCarrito] = useState<LineaCarrito[]>([]);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [resultado, setResultado] = useState<any>(null);
 
-  const total = useMemo(
-    () => carrito.reduce((s, l) => s + l.precio * l.cantidad, 0),
-    [carrito]
+  // Unidades para el selector en cascada
+  const unidades: Unidad[] = useMemo(
+    () => items.map((it) => ({
+      key: it.key, variante_id: it.variante_id, producto: it.producto,
+      talla: it.talla, tallaOrden: it.tallaOrden, color: it.color, sku: it.sku,
+      calidad: it.calidad, calidad_id: it.calidad_id, precio: it.precio, stock: it.cantidad,
+    })),
+    [items]
   );
+
+  const total = useMemo(() => carrito.reduce((s, l) => s + l.precio * l.cantidad, 0), [carrito]);
   const clienteSel = clientes.find((c) => c.id === clienteId);
 
-  function agregarAlCarrito(it: Item) {
-    const key = it.variante_id + it.calidad_id;
+  function agregarUnidad(u: Unidad) {
+    const it = items.find((x) => x.key === u.key);
+    if (!it) return;
     setCarrito((prev) => {
-      const existe = prev.find((l) => l.key === key);
+      const existe = prev.find((l) => l.key === it.key);
       if (existe) {
-        return prev.map((l) =>
-          l.key === key && l.cantidad < l.stock ? { ...l, cantidad: l.cantidad + 1 } : l
-        );
+        return prev.map((l) => (l.key === it.key && l.cantidad < l.stock ? { ...l, cantidad: l.cantidad + 1 } : l));
       }
-      return [
-        ...prev,
-        {
-          key,
-          variante_id: it.variante_id,
-          calidad_id: it.calidad_id,
-          sku: it.sku,
-          calidad: it.calidad,
-          precioLista: it.precio,
-          precio: it.precio,
-          stock: it.cantidad,
-          cantidad: 1,
-        },
-      ];
+      return [...prev, {
+        key: it.key, variante_id: it.variante_id, calidad_id: it.calidad_id, sku: it.sku, calidad: it.calidad,
+        producto: it.producto, talla: it.talla, color: it.color,
+        precioLista: it.precio, precio: it.precio, stock: it.cantidad, cantidad: 1,
+      }];
     });
   }
-  function agregarSeleccionado() {
-    const it = items.find((x) => x.variante_id + x.calidad_id === prodSel);
-    if (it) agregarAlCarrito(it);
-  }
   function cambiarCantidad(key: string, delta: number) {
-    setCarrito((prev) =>
-      prev
-        .map((l) =>
-          l.key === key ? { ...l, cantidad: Math.max(0, Math.min(l.stock, l.cantidad + delta)) } : l
-        )
-        .filter((l) => l.cantidad > 0)
-    );
+    setCarrito((prev) => prev.map((l) => (l.key === key ? { ...l, cantidad: Math.max(0, Math.min(l.stock, l.cantidad + delta)) } : l)).filter((l) => l.cantidad > 0));
   }
   function cambiarPrecio(key: string, valor: number) {
     setCarrito((prev) => prev.map((l) => (l.key === key ? { ...l, precio: Math.max(0, valor) } : l)));
@@ -108,67 +78,42 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
   async function registrar() {
     if (!clienteId) { setError("Selecciona un cliente."); return; }
     if (carrito.length === 0) { setError("Agrega al menos un producto."); return; }
-    setLoading(true);
-    setError(null);
-    setResultado(null);
+    setLoading(true); setError(null); setResultado(null);
     try {
       const res = await fetch("/api/ventas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          vendedor_id: vendedor.id,
-          cliente_id: clienteId,
-          tipo_pago: "CREDITO",
-          dias_credito: 30,
-          descuento: 0,
-          items: carrito.map((l) => ({
-            variante_id: l.variante_id,
-            calidad_id: l.calidad_id,
-            cantidad: l.cantidad,
-            precio_unitario: l.precio, // precio (posiblemente con descuento)
-          })),
+          vendedor_id: vendedor.id, cliente_id: clienteId, tipo_pago: "CREDITO", dias_credito: 30, descuento: 0,
+          items: carrito.map((l) => ({ variante_id: l.variante_id, calidad_id: l.calidad_id, cantidad: l.cantidad, precio_unitario: l.precio })),
         }),
       });
       const json = await res.json();
-      if (!json.ok) {
-        setError(json.error?.message ?? "Error al registrar la venta.");
-      } else {
-        setResultado(json.data);
-        setCarrito([]);
-      }
+      if (!json.ok) setError(json.error?.message ?? "Error al registrar la venta.");
+      else { setResultado(json.data); setCarrito([]); }
     } catch (e) {
       setError("Error de red: " + (e as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
   async function crearCliente(form: FormData) {
     const nombre = String(form.get("nombre") ?? "").trim();
     if (!nombre) return;
     const res = await fetch("/api/clientes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        nombre,
-        telefono: String(form.get("telefono") ?? "") || null,
+        nombre, telefono: String(form.get("telefono") ?? "") || null,
         municipio: String(form.get("municipio") ?? "") || null,
-        documento: String(form.get("documento") ?? "") || null,
-        vendedor_id: vendedor.id,
+        documento: String(form.get("documento") ?? "") || null, vendedor_id: vendedor.id,
       }),
     });
     const json = await res.json();
     if (json.ok) {
       const nuevo: Cliente = json.data;
       setClientes((prev) => [...prev, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre)));
-      setClienteId(nuevo.id);
-      setShowNuevoCliente(false);
-    } else {
-      alert(json.error?.message ?? "No se pudo crear el cliente.");
-    }
+      setClienteId(nuevo.id); setShowNuevoCliente(false);
+    } else alert(json.error?.message ?? "No se pudo crear el cliente.");
   }
 
-  // ---- Vista de éxito ----
   if (resultado) {
     return (
       <div className="alert alert-success" style={{ padding: "var(--space-5)" }}>
@@ -201,40 +146,24 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
             <p className="muted" style={{ margin: 0 }}>No hay clientes. Toca “+ Nuevo”.</p>
           ) : (
             <select className="select" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>{c.nombre}{c.municipio ? ` · ${c.municipio}` : ""}</option>
-              ))}
+              {clientes.map((c) => (<option key={c.id} value={c.id}>{c.nombre}{c.municipio ? ` · ${c.municipio}` : ""}</option>))}
             </select>
           )}
         </div>
-        {clienteSel && (
-          <p className="sub" style={{ marginTop: "var(--space-2)", marginBottom: 0 }}>Vendedor: {vendedor.nombre}</p>
-        )}
+        {clienteSel && <p className="sub" style={{ marginTop: "var(--space-2)", marginBottom: 0 }}>Vendedor: {vendedor.nombre}</p>}
       </div>
 
-      {/* Productos disponibles: dropdown + Agregar */}
+      {/* Selector en cascada */}
       <div className="card">
-        <h3 style={{ marginTop: 0 }}>Productos disponibles</h3>
+        <h3 style={{ marginTop: 0 }}>Agregar productos</h3>
         {items.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>No tienes inventario disponible para vender.</p>
+          <p className="muted" style={{ margin: 0 }}>No hay inventario disponible para vender.</p>
         ) : (
-          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-            <div className="field" style={{ flex: 1, marginBottom: 0 }}>
-              <label htmlFor="producto">Selecciona un producto</label>
-              <select id="producto" className="select" value={prodSel} onChange={(e) => setProdSel(e.target.value)}>
-                {items.map((it) => (
-                  <option key={it.variante_id + it.calidad_id} value={it.variante_id + it.calidad_id}>
-                    {it.sku} · {it.calidad} · {money(it.precio)} (disp: {it.cantidad})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button className="btn" onClick={agregarSeleccionado}>Agregar</button>
-          </div>
+          <SelectorCascada unidades={unidades} conCalidad mostrarStock mostrarPrecio onAgregar={agregarUnidad} />
         )}
       </div>
 
-      {/* Carrito con PRECIO EDITABLE */}
+      {/* Carrito con precio editable */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Carrito ({carrito.length})</h3>
         {carrito.length === 0 ? (
@@ -247,7 +176,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
                 <div className="list-item" key={l.key}>
                   <div className="row">
                     <div>
-                      <div className="title">{l.sku}</div>
+                      <div className="title">{l.producto} · {l.talla} · {l.color}</div>
                       <div className="sub">
                         <EstadoBadge estado={l.calidad} /> · Lista: {money(l.precioLista)}
                         {conDescuento && <span style={{ color: "var(--color-warning)" }}> · con descuento</span>}
@@ -255,20 +184,11 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
                     </div>
                     <div className="amount">{money(l.precio * l.cantidad)}</div>
                   </div>
-
-                  {/* Precio unitario editable */}
                   <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
                     <div className="field" style={{ marginBottom: 0 }}>
                       <label>Precio unitario</label>
-                      <input
-                        className="input tabular"
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        value={l.precio}
-                        onChange={(e) => cambiarPrecio(l.key, Number(e.target.value))}
-                        style={{ width: 130 }}
-                      />
+                      <input className="input tabular" type="number" inputMode="numeric" min={0} value={l.precio}
+                        onChange={(e) => cambiarPrecio(l.key, Number(e.target.value))} style={{ width: 130 }} />
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <button className="btn btn-secondary btn-sm" style={{ minWidth: 40, fontSize: "1.1rem" }} onClick={() => cambiarCantidad(l.key, -1)}>−</button>
