@@ -1,81 +1,43 @@
 # Base de datos · FacturacionHSM (Supabase)
 
-> La base de datos **inicia desde cero**. **No existen datos originales que migrar.** El seed solo carga catálogos parametrizables (estados, calidades, tallas, colores, procesos y la ubicación CENTRAL), nunca datos de negocio.
+Scripts consolidados para crear TODA la base de datos desde cero. Incluyen **todos los cambios** aplicados durante las iteraciones (versión final de cada tabla y función).
 
-## Orden de ejecución de las migraciones
+## 🚀 Orden de ejecución (crear desde cero)
 
-Ejecuta los archivos de `migrations/` **en orden numérico**:
+Ejecuta en el **SQL Editor de Supabase**, uno por uno, en este orden:
 
-| Orden | Archivo | Qué hace |
-|-------|---------|----------|
-| 1 | `20260820_0001_schema.sql` | Crea todas las tablas, constraints e índices. |
-| 2 | `20260820_0002_functions.sql` | Crea las funciones RPC transaccionales (venta, abono, recepción, producción, transferencia, ajuste). |
-| 3 | `20260820_0003_views.sql` | Crea las vistas de reportes y trazabilidad. |
-| 4 | `20260820_0004_rls.sql` | Habilita Row Level Security (aislamiento multi-tenant). |
-| 5 | `20260820_0005_seed_catalogos.sql` | Carga catálogos base para un tenant. |
+| # | Archivo | Qué hace |
+|---|---------|----------|
+| 1 | `migrations/01_schema.sql` | Todas las tablas, constraints e índices (incluye `empresa_config`, `productos.imagen_url`, `empresa_config.cuentas_bancarias`). |
+| 2 | `migrations/02_functions.sql` | Todas las funciones RPC en su **versión final** (producción parcial, inventario central, zona horaria Colombia). |
+| 3 | `migrations/03_views.sql` | Vistas de reportes y trazabilidad. |
+| 4 | `migrations/04_rls.sql` | Row Level Security completo (tablas principales + detalle + empresa_config). |
+| 5 | `migrations/05_seed.sql` | Catálogos base + `empresa_config` (con cuentas bancarias). |
+| 6 | `migrations/06_post_instalacion.sql` | **Guía** de pasos manuales (crear usuario admin, editar empresa, asignar imágenes). No se corre de una vez; sigue cada bloque. |
 
-## Opción A — Supabase CLI (recomendado)
+## 🧹 Reset (para producción)
 
-```bash
-# 1. Instalar la CLI (una sola vez)
-npm i -g supabase
+| Archivo | Cuándo usarlo |
+|---------|---------------|
+| `migrations/99_reset_datos.sql` | Cuando el cliente dé luz verde para operar en vivo: borra datos de prueba y deja la base lista. Conserva tenant, usuarios, empresa_config, CENTRAL y catálogos base. |
 
-# 2. Iniciar sesión y enlazar tu proyecto
-supabase login
-supabase link --project-ref <TU_PROJECT_REF>
+## 📋 Después de crear la base (pasos rápidos)
 
-# 3. Colocar los .sql en supabase/migrations (ya lo están) y aplicar
-supabase db push
-```
+1. **Crear usuario admin:** Supabase → Authentication → Add user (marca "Auto Confirm User"). Luego, en SQL Editor, inserta su perfil (ver bloque A de `06_post_instalacion.sql`).
+2. **Editar datos de la empresa:** el seed trae valores de ejemplo; edítalos con los reales (bloque B).
+3. **Storage:** crea los buckets privados `facturas` y `comprobantes` si vas a usar PDF/comprobantes en Storage (opcional; hoy la factura es vista imprimible).
+4. **Imágenes de producto:** crea los productos en la app y asigna `imagen_url` (bloque C), con las fotos en `public/productos/`.
 
-Para desarrollo local con Docker:
-```bash
-supabase start          # levanta Postgres local
-supabase db reset       # aplica migraciones + seed desde cero
-```
+## 🧠 Cambios acumulados que ya vienen incluidos
 
-## Opción B — SQL Editor del panel de Supabase
+- **Tabla `empresa_config`** (emisor de factura) + campo `cuentas_bancarias`.
+- **`productos.imagen_url`** (imagen del producto en el POS).
+- **RLS de tablas de detalle** (compras, producción, transferencias).
+- **`sp_anular_venta`** (no existía en la versión original).
+- **`sp_ejecutar_produccion` final:** transformación directa CRUDO→TERMINADO (soporta producción parcial y calidades segunda/merma).
+- **`sp_registrar_venta` final:** descuenta del inventario **CENTRAL compartido** (Fase 1, sin distribución) + fechas en **zona horaria Colombia**.
+- **`sp_registrar_abono` final:** fecha en zona horaria Colombia.
 
-1. Entra a tu proyecto → **SQL Editor**.
-2. Copia y ejecuta el contenido de cada archivo **en orden** (0001 → 0005).
-3. Verifica en **Table Editor** que las tablas y catálogos se crearon.
-
-## Opción C — psql
-
-```bash
-psql "$SUPABASE_DB_URL" -f migrations/20260820_0001_schema.sql
-psql "$SUPABASE_DB_URL" -f migrations/20260820_0002_functions.sql
-psql "$SUPABASE_DB_URL" -f migrations/20260820_0003_views.sql
-psql "$SUPABASE_DB_URL" -f migrations/20260820_0004_rls.sql
-psql "$SUPABASE_DB_URL" -f migrations/20260820_0005_seed_catalogos.sql
-```
-
-## Después de aplicar
-
-1. **Crear el primer usuario admin:** registra un usuario en Supabase Auth y luego inserta su perfil enlazándolo al tenant:
-   ```sql
-   insert into public.usuarios (id, tenant_id, nombre, rol)
-   values ('<auth_user_uuid>', (select id from public.tenants where nombre='HSM'), 'Admin HSM', 'admin');
-   ```
-2. **Storage:** crea dos buckets privados: `facturas` y `comprobantes`.
-3. **Generar tipos TS** para el frontend:
-   ```bash
-   supabase gen types typescript --linked > ../src/types/database.ts
-   ```
-
-## Notas de diseño (resumen)
-
-- **Inventario = saldo (`inventario`) + libro mayor inmutable (`movimientos_inventario`)**. Nunca se edita un movimiento.
-- Las escrituras de inventario/cartera **solo** ocurren vía funciones RPC (`security definer`), que garantizan atomicidad y validan el tenant.
-- **Estado (etapa)** y **calidad (condición)** son catálogos independientes.
-- **RLS** aísla cada tenant. El `tenant_id` del usuario se resuelve con `fn_current_tenant()`.
-- Importes en `numeric(14,2)`; cantidades enteras `>= 0` (nunca negativas).
-
-## Rollback / reinicio total (⚠️ borra todo)
-
-Solo para entornos de desarrollo:
-```sql
-drop schema public cascade;
-create schema public;
--- luego reaplica las migraciones desde 0001
-```
+## ⚠️ Notas
+- Las funciones `sp_transferir_inventario` y las pantallas de Distribución/Retorno se conservan en la base (ocultas en la app en Fase 1). Reactivables en el futuro.
+- Los campos `created_at` se guardan en UTC (auditoría); los campos `fecha` (date) reflejan el día en Colombia.

@@ -1,0 +1,65 @@
+-- =====================================================================
+-- FacturacionHSM · SCRIPT 06 · POST-INSTALACIÓN (pasos manuales)
+-- =====================================================================
+-- Estos pasos se ejecutan DESPUÉS de tener la base creada (01-05) y de
+-- haber creado los usuarios en Supabase Authentication.
+-- No es un script para correr de una sola vez: sigue cada bloque según
+-- corresponda a tu instalación.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- A) Crear el PERFIL del usuario admin
+--    1. Primero crea el usuario en Supabase → Authentication → Add user
+--       (marca "Auto Confirm User").
+--    2. Copia su UID y ejecuta este insert (reemplaza el UID y el nombre).
+-- ---------------------------------------------------------------------
+-- insert into public.usuarios (id, tenant_id, nombre, rol, activo)
+-- values (
+--   'PEGAR-UID-DEL-USUARIO-AQUI',
+--   (select id from public.tenants where nombre = 'HSM' limit 1),
+--   'Nombre del Admin',
+--   'admin',
+--   true
+-- );
+
+-- Si el email no quedó confirmado, confírmalo:
+-- update auth.users set email_confirmed_at = now()
+--   where id = 'PEGAR-UID-DEL-USUARIO-AQUI' and email_confirmed_at is null;
+
+-- ---------------------------------------------------------------------
+-- B) Editar los datos reales de la empresa (si no lo hiciste en el seed)
+-- ---------------------------------------------------------------------
+-- update public.empresa_config set
+--   razon_social = 'HSM Family Sport',
+--   nit          = '...',
+--   direccion    = '...',
+--   ciudad       = '...',
+--   telefono     = '...',
+--   email        = '...'
+-- where tenant_id = (select id from public.tenants where nombre = 'HSM');
+
+-- ---------------------------------------------------------------------
+-- C) Asignar imágenes a los productos (después de crearlos en la app)
+--    Las imágenes van en public/productos/<archivo>.jpg
+--    Ajusta los nombres a los productos reales.
+-- ---------------------------------------------------------------------
+-- update public.productos set imagen_url = '/productos/camisa-dama.jpg'
+--   where nombre = 'BASICA DAMA 200 GR';
+-- update public.productos set imagen_url = '/productos/camisa-hombre.jpg'
+--   where nombre = 'CAMISA HOMBRE 240 GR';
+-- update public.productos set imagen_url = '/productos/oversize-corta.jpg'
+--   where nombre = 'OVERSIZE CORTA 200 GR';
+-- update public.productos set imagen_url = '/productos/oversize-larga.jpg'
+--   where nombre = 'OVERSIZE LARGA 200 GR';
+
+-- ---------------------------------------------------------------------
+-- D) (Opcional) Asociar un usuario a un vendedor específico
+--    Útil si quieres que el POS registre la venta a nombre de ese vendedor.
+-- ---------------------------------------------------------------------
+-- update public.usuarios
+--   set vendedor_id = (select id from public.vendedores where nombre = 'NOMBRE_VENDEDOR')
+--   where id = 'UID_DEL_USUARIO';
+
+-- =====================================================================
+-- FIN SCRIPT 06 (post-instalación)
+-- =====================================================================
