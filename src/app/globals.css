@@ -540,3 +540,22 @@ h3 { font-size: 1.05rem; margin: 0 0 var(--space-2); }
   text-align: center;
 }
 .cascada-card-img.activo .cascada-nombre { color: var(--color-primary); }
+/* ===== AJUSTE RESPONSIVE del grid de productos en cascada =====
+   Agregar al final de src/app/globals.css.
+   Móvil: 2 columnas (imágenes grandes, cómodas para el dedo).
+   Escritorio: más columnas → imágenes más pequeñas. */
+
+/* Escritorio (>= 900px): 4 columnas → imágenes más pequeñas */
+@media (min-width: 900px) {
+  .cascada-grid {
+    grid-template-columns: repeat(4, 1fr);
+    max-width: 720px;   /* evita que se estiren demasiado en pantallas anchas */
+  }
+}
+
+/* Tablet (640px – 899px): 3 columnas */
+@media (min-width: 640px) and (max-width: 899px) {
+  .cascada-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
