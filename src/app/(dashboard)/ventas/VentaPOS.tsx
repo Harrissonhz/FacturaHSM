@@ -1,7 +1,7 @@
 "use client";
 
 // ---------------------------------------------------------------------
-// POS de venta con SELECTOR EN CASCADA (Calidad → Producto → Talla → Color).
+// POS de venta con SELECTOR EN CASCADA (Calidad → Producto[img] → Talla → Color).
 // Precio unitario editable por línea. Carrito multi-producto.
 // ---------------------------------------------------------------------
 import { useState, useMemo } from "react";
@@ -12,7 +12,7 @@ import SelectorCascada, { type Unidad } from "@/components/SelectorCascada";
 type Cliente = { id: string; nombre: string; municipio: string | null };
 type Item = {
   key: string; variante_id: string; calidad_id: string; calidad: string;
-  producto: string; talla: string; tallaOrden: number; color: string;
+  producto: string; productoImg: string | null; talla: string; tallaOrden: number; color: string;
   sku: string; cantidad: number; precio: number;
 };
 type LineaCarrito = {
@@ -37,10 +37,9 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [resultado, setResultado] = useState<any>(null);
 
-  // Unidades para el selector en cascada
   const unidades: Unidad[] = useMemo(
     () => items.map((it) => ({
-      key: it.key, variante_id: it.variante_id, producto: it.producto,
+      key: it.key, variante_id: it.variante_id, producto: it.producto, productoImg: it.productoImg,
       talla: it.talla, tallaOrden: it.tallaOrden, color: it.color, sku: it.sku,
       calidad: it.calidad, calidad_id: it.calidad_id, precio: it.precio, stock: it.cantidad,
     })),
@@ -135,7 +134,6 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
 
   return (
     <>
-      {/* Cliente */}
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3 style={{ margin: 0 }}>Cliente</h3>
@@ -153,7 +151,6 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
         {clienteSel && <p className="sub" style={{ marginTop: "var(--space-2)", marginBottom: 0 }}>Vendedor: {vendedor.nombre}</p>}
       </div>
 
-      {/* Selector en cascada */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Agregar productos</h3>
         {items.length === 0 ? (
@@ -163,7 +160,6 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
         )}
       </div>
 
-      {/* Carrito con precio editable */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Carrito ({carrito.length})</h3>
         {carrito.length === 0 ? (
@@ -215,7 +211,6 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
         {loading ? "Registrando..." : `Registrar venta · ${money(total)}`}
       </button>
 
-      {/* Bottom sheet: nuevo cliente */}
       {showNuevoCliente && (
         <div className="sheet-overlay" onClick={() => setShowNuevoCliente(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>

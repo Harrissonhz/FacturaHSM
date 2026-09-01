@@ -1,4 +1,4 @@
-// Pantalla "Nueva compra": proveedores + variantes enriquecidas (producto/talla/color).
+// Pantalla "Nueva compra": proveedores + variantes enriquecidas (producto[img]/talla/color).
 import { createClient } from "@/lib/supabase/server";
 import NuevaCompraForm from "./NuevaCompraForm";
 
@@ -12,7 +12,7 @@ export default async function NuevaCompraPage() {
 
   const { data: variantes } = await supabase
     .from("variantes")
-    .select("id, sku, precio_base, productos(nombre), colores(nombre), tallas(nombre, orden)")
+    .select("id, sku, precio_base, productos(nombre, imagen_url), colores(nombre), tallas(nombre, orden)")
     .eq("activo", true)
     .order("sku");
 
@@ -21,6 +21,7 @@ export default async function NuevaCompraPage() {
     key: v.id,
     variante_id: v.id,
     producto: v.productos?.nombre ?? "Producto",
+    productoImg: v.productos?.imagen_url ?? null,
     talla: v.tallas?.nombre ?? "-",
     tallaOrden: v.tallas?.orden ?? 0,
     color: v.colores?.nombre ?? "-",

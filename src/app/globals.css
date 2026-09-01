@@ -499,3 +499,44 @@ h3 { font-size: 1.05rem; margin: 0 0 var(--space-2); }
   font-weight: 700;
 }
 .chip-color:hover { background: rgba(14,165,233,.08); }
+
+/* ===== SELECTOR EN CASCADA con IMAGEN (agregar al final de globals.css) =====
+   Nota: si ya pegaste el bloque anterior de cascada (.cascada-grid, .chip...),
+   mantén esos; este agrega los estilos de la tarjeta con imagen. */
+
+/* Grid ya existe (.cascada-grid). Tarjeta de producto con imagen: */
+.cascada-card-img {
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: border-color .12s, background .12s;
+}
+.cascada-card-img:active { transform: scale(.98); }
+.cascada-card-img.activo {
+  border-color: var(--color-primary);
+  background: var(--color-primary-050);
+}
+.cascada-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.cascada-img-ph {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.5rem; color: #94a3b8;
+}
+.cascada-nombre {
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--color-text);
+  text-align: center;
+}
+.cascada-card-img.activo .cascada-nombre { color: var(--color-primary); }

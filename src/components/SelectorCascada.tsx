@@ -2,25 +2,25 @@
 
 // ---------------------------------------------------------------------
 // Selector en cascada (mobile-first) para elegir una variante:
-//   [Calidad] → Producto → Talla → Color → (al carrito)
+//   [Calidad] → Producto (con IMAGEN) → Talla → Color → (al carrito)
 // Reutilizable para VENTA (con calidad + stock) y COMPRA (sin calidad).
-// Botones grandes tipo chips; en cada paso solo muestra lo que existe.
 // ---------------------------------------------------------------------
 import { useState, useMemo } from "react";
 import { money } from "@/lib/format";
 
 export type Unidad = {
-  key: string;          // único por variante(+calidad)
+  key: string;
   variante_id: string;
   producto: string;
+  productoImg?: string | null;   // ruta de imagen del producto
   talla: string;
   tallaOrden: number;
   color: string;
   sku: string;
-  calidad?: string;     // "PRIMERA" | "SEGUNDA" (solo venta)
-  calidad_id?: string;  // solo venta
-  precio?: number;      // venta: precio de venta; compra: precio base sugerido
-  stock?: number;       // solo venta
+  calidad?: string;
+  calidad_id?: string;
+  precio?: number;
+  stock?: number;
 };
 
 export default function SelectorCascada({
@@ -40,17 +40,21 @@ export default function SelectorCascada({
   const [producto, setProducto] = useState<string | null>(null);
   const [talla, setTalla] = useState<string | null>(null);
 
-  // 1) Filtrar por calidad (solo si aplica)
   const base = useMemo(
     () => (conCalidad ? unidades.filter((u) => u.calidad === calidad) : unidades),
     [unidades, conCalidad, calidad]
   );
 
-  // ¿La calidad seleccionada tiene productos? (para avisar si "segunda" está vacía)
-  const productos = useMemo(
-    () => Array.from(new Set(base.map((u) => u.producto))).sort(),
-    [base]
-  );
+  // Productos únicos con su imagen (toma la primera imagen encontrada por producto)
+  const productos = useMemo(() => {
+    const map = new Map<string, string | null>();
+    base.forEach((u) => {
+      if (!map.has(u.producto)) map.set(u.producto, u.productoImg ?? null);
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([nombre, img]) => ({ nombre, img }));
+  }, [base]);
 
   const tallas = useMemo(() => {
     if (!producto) return [];
@@ -65,21 +69,12 @@ export default function SelectorCascada({
     return base.filter((u) => u.producto === producto && u.talla === talla);
   }, [base, producto, talla]);
 
-  function elegirCalidad(c: string) {
-    setCalidad(c); setProducto(null); setTalla(null);
-  }
-  function elegirProducto(p: string) {
-    setProducto(p); setTalla(null);
-  }
-  function elegirColor(u: Unidad) {
-    onAgregar(u);
-    // Mantiene calidad y producto para agregar varios rápido; reinicia talla.
-    setTalla(null);
-  }
+  function elegirCalidad(c: string) { setCalidad(c); setProducto(null); setTalla(null); }
+  function elegirProducto(p: string) { setProducto(p); setTalla(null); }
+  function elegirColor(u: Unidad) { onAgregar(u); setTalla(null); }
 
   return (
     <div>
-      {/* Calidad (solo venta) */}
       {conCalidad && (
         <div style={{ marginBottom: 12 }}>
           <div className="sub" style={{ marginBottom: 6 }}>Calidad</div>
@@ -90,7 +85,7 @@ export default function SelectorCascada({
         </div>
       )}
 
-      {/* Paso 1: Producto */}
+      {/* Paso 1: Producto (con imagen) */}
       <div className="sub" style={{ marginBottom: 6 }}>1. Producto</div>
       {productos.length === 0 ? (
         <p className="muted" style={{ margin: "0 0 12px" }}>
@@ -100,11 +95,17 @@ export default function SelectorCascada({
         <div className="cascada-grid">
           {productos.map((p) => (
             <button
-              key={p}
-              className={`cascada-card ${producto === p ? "activo" : ""}`}
-              onClick={() => elegirProducto(p)}
+              key={p.nombre}
+              className={`cascada-card-img ${producto === p.nombre ? "activo" : ""}`}
+              onClick={() => elegirProducto(p.nombre)}
             >
-              👕 {p}
+              {p.img ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={p.img} alt={p.nombre} className="cascada-img" loading="lazy" />
+              ) : (
+                <div className="cascada-img cascada-img-ph">👕</div>
+              )}
+              <span className="cascada-nombre">{p.nombre}</span>
             </button>
           ))}
         </div>
@@ -116,9 +117,7 @@ export default function SelectorCascada({
           <div className="sub" style={{ margin: "14px 0 6px" }}>2. Talla · <strong>{producto}</strong></div>
           <div className="chips">
             {tallas.map((t) => (
-              <button key={t} className={`chip ${talla === t ? "activo" : ""}`} onClick={() => setTalla(t)}>
-                {t}
-              </button>
+              <button key={t} className={`chip ${talla === t ? "activo" : ""}`} onClick={() => setTalla(t)}>{t}</button>
             ))}
           </div>
         </>

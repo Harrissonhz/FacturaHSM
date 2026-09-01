@@ -1,7 +1,6 @@
 "use client";
 
-// Nueva compra con SELECTOR EN CASCADA (Producto → Talla → Color, sin calidad).
-// Cada línea del carrito tiene cantidad y costo unitario editables.
+// Nueva compra con SELECTOR EN CASCADA (Producto[img] → Talla → Color, sin calidad).
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
@@ -10,8 +9,8 @@ import SelectorCascada, { type Unidad } from "@/components/SelectorCascada";
 
 type Prov = { id: string; nombre: string };
 type Var = {
-  key: string; variante_id: string; producto: string; talla: string; tallaOrden: number;
-  color: string; sku: string; precio: number;
+  key: string; variante_id: string; producto: string; productoImg: string | null;
+  talla: string; tallaOrden: number; color: string; sku: string; precio: number;
 };
 type Linea = { key: string; variante_id: string; producto: string; talla: string; color: string; cantidad: number; costo: number };
 
@@ -28,7 +27,7 @@ export default function NuevaCompraForm({
 
   const unidades: Unidad[] = useMemo(
     () => variantes.map((v) => ({
-      key: v.key, variante_id: v.variante_id, producto: v.producto,
+      key: v.key, variante_id: v.variante_id, producto: v.producto, productoImg: v.productoImg,
       talla: v.talla, tallaOrden: v.tallaOrden, color: v.color, sku: v.sku, precio: v.precio,
     })),
     [variantes]
@@ -37,7 +36,7 @@ export default function NuevaCompraForm({
   const total = useMemo(() => lineas.reduce((s, l) => s + l.cantidad * l.costo, 0), [lineas]);
 
   function agregarUnidad(u: Unidad) {
-    if (lineas.some((l) => l.key === u.key)) return; // ya está
+    if (lineas.some((l) => l.key === u.key)) return;
     setLineas((prev) => [...prev, {
       key: u.key, variante_id: u.variante_id, producto: u.producto, talla: u.talla, color: u.color,
       cantidad: 1, costo: 0,
@@ -76,13 +75,11 @@ export default function NuevaCompraForm({
         <p className="sub" style={{ marginTop: 10, marginBottom: 0 }}>El número de compra se asigna automáticamente (OC-XXXXXX).</p>
       </div>
 
-      {/* Selector en cascada (sin calidad) */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Agregar productos</h3>
         <SelectorCascada unidades={unidades} onAgregar={agregarUnidad} />
       </div>
 
-      {/* Carrito de compra */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Detalle de compra ({lineas.length})</h3>
         {lineas.length === 0 ? (

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 // Pantalla de Ventas (Server Component) - inventario central compartido.
-// Enriquece cada unidad con producto/talla/color para el selector en cascada.
+// Enriquece cada unidad con producto/imagen/talla/color para la cascada.
 // ---------------------------------------------------------------------
 import { createClient } from "@/lib/supabase/server";
 import { getPerfil } from "@/lib/auth/session";
@@ -12,7 +12,6 @@ export default async function VentasPage() {
   const supabase = createClient();
   const perfil = await getPerfil();
 
-  // 1. Vendedor que registra la venta
   let vendedor: { id: string; nombre: string; municipio: string | null } | null = null;
   if (perfil?.vendedor_id) {
     const { data } = await supabase
@@ -27,16 +26,14 @@ export default async function VentasPage() {
     vendedor = (data as any) ?? null;
   }
 
-  // 2. Clientes activos
   type Cliente = { id: string; nombre: string; municipio: string | null };
   const { data: clientesData } = await supabase
     .from("clientes").select("id, nombre, municipio").eq("activo", true).order("nombre");
   const clientes = (clientesData ?? []) as Cliente[];
 
-  // 3. Inventario LISTO de la CENTRAL, enriquecido con producto/talla/color
   type Item = {
     key: string; variante_id: string; calidad_id: string; calidad: string;
-    producto: string; talla: string; tallaOrden: number; color: string;
+    producto: string; productoImg: string | null; talla: string; tallaOrden: number; color: string;
     sku: string; cantidad: number; precio: number;
   };
   let items: Item[] = [];
@@ -48,7 +45,7 @@ export default async function VentasPage() {
       .from("inventario")
       .select(
         "variante_id, calidad_id, cantidad, " +
-          "variantes(sku, precio_base, productos(nombre), colores(nombre), tallas(nombre, orden)), " +
+          "variantes(sku, precio_base, productos(nombre, imagen_url), colores(nombre), tallas(nombre, orden)), " +
           "calidades(codigo), estados_inventario!inner(codigo)"
       )
       .eq("ubicacion_id", central.id)
@@ -69,6 +66,7 @@ export default async function VentasPage() {
         calidad_id: r.calidad_id,
         calidad: r.calidades?.codigo ?? "",
         producto: r.variantes?.productos?.nombre ?? "Producto",
+        productoImg: r.variantes?.productos?.imagen_url ?? null,
         talla: r.variantes?.tallas?.nombre ?? "-",
         tallaOrden: r.variantes?.tallas?.orden ?? 0,
         color: r.variantes?.colores?.nombre ?? "-",
