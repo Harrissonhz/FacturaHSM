@@ -1,4 +1,5 @@
 // Ajuste de inventario: corrige saldos con un movimiento auditable.
+// Muestra descripción larga (Producto / Color / Talla).
 import { createClient } from "@/lib/supabase/server";
 import AjusteClient from "./AjusteClient";
 
@@ -7,25 +8,33 @@ export const dynamic = "force-dynamic";
 export default async function AjustePage() {
   const supabase = createClient();
 
-  // Saldos actuales (todas las combinaciones con cantidad > 0)
   const { data: inv } = await supabase
     .from("inventario")
-    .select("variante_id, ubicacion_id, estado_id, calidad_id, cantidad, variantes(sku), ubicaciones(nombre), estados_inventario(codigo), calidades(codigo)")
+    .select(
+      "variante_id, ubicacion_id, estado_id, calidad_id, cantidad, " +
+        "variantes(sku, productos(nombre), colores(nombre), tallas(nombre)), " +
+        "ubicaciones(nombre), estados_inventario(codigo), calidades(codigo)"
+    )
     .gt("cantidad", 0)
     .limit(300);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const filas = (inv ?? []).map((r: any) => ({
-    variante_id: r.variante_id,
-    ubicacion_id: r.ubicacion_id,
-    estado_id: r.estado_id,
-    calidad_id: r.calidad_id,
-    cantidad: r.cantidad,
-    sku: r.variantes?.sku ?? "-",
-    ubicacion: r.ubicaciones?.nombre ?? "-",
-    estado: r.estados_inventario?.codigo ?? "-",
-    calidad: r.calidades?.codigo ?? "-",
-  }));
+  const filas = (inv ?? []).map((r: any) => {
+    const prod = r.variantes?.productos?.nombre ?? r.variantes?.sku ?? "Producto";
+    const color = r.variantes?.colores?.nombre ?? "";
+    const talla = r.variantes?.tallas?.nombre ?? "";
+    return {
+      variante_id: r.variante_id,
+      ubicacion_id: r.ubicacion_id,
+      estado_id: r.estado_id,
+      calidad_id: r.calidad_id,
+      cantidad: r.cantidad,
+      descripcion: [prod, color, talla].filter(Boolean).join(" / "),
+      ubicacion: r.ubicaciones?.nombre ?? "-",
+      estado: r.estados_inventario?.codigo ?? "-",
+      calidad: r.calidades?.codigo ?? "-",
+    };
+  });
 
   return (
     <main>

@@ -1,8 +1,9 @@
 // ---------------------------------------------------------------------
 // Vista de Factura imprimible/descargable (Server Component).
 // Ruta: /factura/[ventaId]
-// Incluye LOGO del emisor y una sección de MEDIOS DE PAGO (cuentas
-// bancarias) parametrizable desde empresa_config.cuentas_bancarias.
+// Muestra DESCRIPCIÓN LARGA del producto (Producto / Color / Talla) en
+// vez del código SKU, para que sea clara para el cliente.
+// Incluye logo y medios de pago (cuentas bancarias).
 // ---------------------------------------------------------------------
 import { createClient } from "@/lib/supabase/server";
 import { money, fecha } from "@/lib/format";
@@ -46,9 +47,14 @@ export default async function FacturaPage({
     .eq("factura_id", factura?.id ?? "")
     .maybeSingle();
 
+  // Detalle con producto/color/talla para armar la descripción larga
   const { data: detalle } = await supabase
     .from("ventas_detalle")
-    .select("cantidad, precio_unitario, subtotal, variantes(sku, referencia), calidades(codigo)")
+    .select(
+      "cantidad, precio_unitario, subtotal, " +
+        "variantes(sku, productos(nombre), colores(nombre), tallas(nombre)), " +
+        "calidades(codigo, nombre)"
+    )
     .eq("venta_id", ventaId);
 
   if (!venta || !factura) {
@@ -66,11 +72,17 @@ export default async function FacturaPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const lineas: any[] = detalle ?? [];
 
-  // Cuentas bancarias: cada línea es una cuenta
   const cuentas = (emisor?.cuentas_bancarias ?? "")
-    .split("\n")
-    .map((l: string) => l.trim())
-    .filter((l: string) => l.length > 0);
+    .split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+
+  // Descripción larga: "Producto / Color / Talla"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const descripcion = (l: any): string => {
+    const prod = l.variantes?.productos?.nombre ?? l.variantes?.sku ?? "Producto";
+    const color = l.variantes?.colores?.nombre ?? "";
+    const talla = l.variantes?.tallas?.nombre ?? "";
+    return [prod, color, talla].filter(Boolean).join(" / ");
+  };
 
   return (
     <main className="factura-wrap">
@@ -87,7 +99,7 @@ export default async function FacturaPage({
               <img src={emisor.logo_url} alt="Logo" className="factura-logo" />
             ) : null}
             <div>
-              <h1 className="emisor-nombre">{emisor?.razon_social ?? "HSM Confecciones"}</h1>
+              <h1 className="emisor-nombre">{emisor?.razon_social ?? "HSM Family Sport"}</h1>
               <div className="emisor-datos">
                 {emisor?.nit && <div>NIT: {emisor.nit}</div>}
                 {emisor?.direccion && <div>{emisor.direccion}</div>}
@@ -125,15 +137,15 @@ export default async function FacturaPage({
           <table className="factura-items">
             <thead>
               <tr>
-                <th>Referencia</th><th>Calidad</th>
+                <th>Descripción</th><th>Calidad</th>
                 <th className="num">Cant.</th><th className="num">Precio unit.</th><th className="num">Subtotal</th>
               </tr>
             </thead>
             <tbody>
               {lineas.map((l, i) => (
                 <tr key={i}>
-                  <td>{l.variantes?.sku ?? l.variantes?.referencia ?? "-"}</td>
-                  <td>{l.calidades?.codigo ?? "-"}</td>
+                  <td>{descripcion(l)}</td>
+                  <td>{l.calidades?.nombre ?? l.calidades?.codigo ?? "-"}</td>
                   <td className="num">{l.cantidad}</td>
                   <td className="num">{money(Number(l.precio_unitario))}</td>
                   <td className="num">{money(Number(l.subtotal))}</td>
@@ -155,15 +167,12 @@ export default async function FacturaPage({
           </table>
         </section>
 
-        {/* Medios de pago (cuentas bancarias) */}
         {cuentas.length > 0 && (
           <section className="factura-pago">
             <h2>Medios de pago</h2>
             <p className="pago-nota">Puede realizar su pago en cualquiera de las siguientes cuentas:</p>
             <ul className="pago-cuentas">
-              {cuentas.map((c: string, i: number) => (
-                <li key={i}>{c}</li>
-              ))}
+              {cuentas.map((c: string, i: number) => (<li key={i}>{c}</li>))}
             </ul>
           </section>
         )}

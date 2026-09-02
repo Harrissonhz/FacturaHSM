@@ -1,6 +1,7 @@
 "use client";
 
 // Selecciona un saldo de inventario y aplica un ajuste (+/-) con motivo.
+// Muestra descripción larga (Producto / Color / Talla).
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ajustarInventario } from "@/services/correcciones.actions";
@@ -8,7 +9,7 @@ import EstadoBadge from "@/components/EstadoBadge";
 
 type Fila = {
   variante_id: string; ubicacion_id: string; estado_id: string; calidad_id: string;
-  cantidad: number; sku: string; ubicacion: string; estado: string; calidad: string;
+  cantidad: number; descripcion: string; ubicacion: string; estado: string; calidad: string;
 };
 
 export default function AjusteClient({ filas }: { filas: Fila[] }) {
@@ -22,7 +23,7 @@ export default function AjusteClient({ filas }: { filas: Fila[] }) {
   const [buscar, setBuscar] = useState("");
 
   const filtradas = filas.filter((f) =>
-    `${f.sku} ${f.ubicacion} ${f.estado} ${f.calidad}`.toLowerCase().includes(buscar.toLowerCase())
+    `${f.descripcion} ${f.ubicacion} ${f.estado} ${f.calidad}`.toLowerCase().includes(buscar.toLowerCase())
   );
 
   const nuevoSaldo = sel ? sel.cantidad + delta : 0;
@@ -43,7 +44,7 @@ export default function AjusteClient({ filas }: { filas: Fila[] }) {
     const res = await ajustarInventario(fd);
     setLoading(false);
     if (res.ok) {
-      setOkMsg(`Ajuste aplicado. ${sel.sku}: ${sel.cantidad} → ${nuevoSaldo}.`);
+      setOkMsg(`Ajuste aplicado. ${sel.descripcion}: ${sel.cantidad} → ${nuevoSaldo}.`);
       setSel(null); setDelta(0); setMotivo("");
       router.refresh();
     } else {
@@ -57,7 +58,7 @@ export default function AjusteClient({ filas }: { filas: Fila[] }) {
 
       {filas.length > 5 && (
         <div className="field" style={{ marginBottom: 12 }}>
-          <input className="input" placeholder="Buscar por SKU, ubicación..." value={buscar} onChange={(e) => setBuscar(e.target.value)} />
+          <input className="input" placeholder="Buscar por producto, ubicación..." value={buscar} onChange={(e) => setBuscar(e.target.value)} />
         </div>
       )}
 
@@ -71,7 +72,7 @@ export default function AjusteClient({ filas }: { filas: Fila[] }) {
           >
             <div className="row">
               <div>
-                <div className="title">{f.sku}</div>
+                <div className="title">{f.descripcion}</div>
                 <div className="sub">{f.ubicacion} · {f.estado} · <EstadoBadge estado={f.calidad} /></div>
               </div>
               <div className="amount amount-lg">{f.cantidad}</div>
@@ -84,22 +85,17 @@ export default function AjusteClient({ filas }: { filas: Fila[] }) {
         <div className="sheet-overlay" onClick={() => !loading && setSel(null)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="handle" />
-            <h3 style={{ marginTop: 0 }}>Ajustar {sel.sku}</h3>
+            <h3 style={{ marginTop: 0 }}>Ajustar</h3>
             <p className="muted" style={{ marginTop: 0 }}>
+              {sel.descripcion}
+              <br />
               {sel.ubicacion} · {sel.estado} · {sel.calidad} · Saldo actual: <strong>{sel.cantidad}</strong>
             </p>
 
             <div className="field">
               <label htmlFor="delta">Ajuste (+ entra / − sale)</label>
-              <input
-                id="delta"
-                className="input tabular"
-                type="number"
-                inputMode="numeric"
-                value={delta}
-                onChange={(e) => setDelta(Number(e.target.value))}
-                placeholder="Ej: -2 o 5"
-              />
+              <input id="delta" className="input tabular" type="number" inputMode="numeric" value={delta}
+                onChange={(e) => setDelta(Number(e.target.value))} placeholder="Ej: -2 o 5" />
             </div>
 
             <p className="sub" style={{ marginTop: -4 }}>

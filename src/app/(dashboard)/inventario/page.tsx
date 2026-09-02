@@ -1,10 +1,9 @@
 // ---------------------------------------------------------------------
-// Pantalla de Inventario (Server Component) - Fase 1.
-// Muestra el inventario disponible (LISTO) por ubicacion/calidad.
+// Pantalla de Inventario (Server Component).
+// Muestra la DESCRIPCIÓN LARGA (Producto / Color / Talla) en vez del SKU.
 // ---------------------------------------------------------------------
 import { createClient } from "@/lib/supabase/server";
 import EstadoBadge from "@/components/EstadoBadge";
-import { money } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -15,42 +14,43 @@ export default async function InventarioPage() {
     .from("inventario")
     .select(
       "cantidad, " +
-        "variantes(sku, referencia, precio_base), " +
-        "ubicaciones(nombre, tipo), " +
-        "calidades(codigo), " +
-        "estados_inventario!inner(codigo)"
+        "variantes(sku, productos(nombre), colores(nombre), tallas(nombre)), " +
+        "ubicaciones(nombre, tipo), calidades(codigo), estados_inventario!inner(codigo)"
     )
-    .eq("estados_inventario.codigo", "LISTO")
-    .gt("cantidad", 0);
+    .gt("cantidad", 0)
+    .order("cantidad", { ascending: false });
 
   type Fila = {
-    sku: string;
+    descripcion: string;
     ubicacion: string;
-    tipo: string;
+    estado: string;
     calidad: string;
     cantidad: number;
-    precio: number;
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const filas: Fila[] = (data ?? []).map((r: any) => ({
-    sku: r.variantes?.sku ?? "-",
-    ubicacion: r.ubicaciones?.nombre ?? "-",
-    tipo: r.ubicaciones?.tipo ?? "-",
-    calidad: r.calidades?.codigo ?? "-",
-    cantidad: r.cantidad,
-    precio: Number(r.variantes?.precio_base ?? 0),
-  }));
+  const filas: Fila[] = (data ?? []).map((r: any) => {
+    const prod = r.variantes?.productos?.nombre ?? r.variantes?.sku ?? "Producto";
+    const color = r.variantes?.colores?.nombre ?? "";
+    const talla = r.variantes?.tallas?.nombre ?? "";
+    return {
+      descripcion: [prod, color, talla].filter(Boolean).join(" / "),
+      ubicacion: r.ubicaciones?.nombre ?? "-",
+      estado: r.estados_inventario?.codigo ?? "-",
+      calidad: r.calidades?.codigo ?? "-",
+      cantidad: r.cantidad,
+    };
+  });
 
   return (
-    <>
-      <h1>Inventario disponible</h1>
-      <p className="muted">Productos listos para la venta por ubicación y calidad.</p>
+    <main>
+      <h1>Inventario</h1>
+      <p className="muted">Existencias por producto, ubicación, estado y calidad.</p>
 
       {filas.length === 0 ? (
         <div className="empty-state">
           <span className="emoji">📦</span>
-          No hay inventario disponible por ahora.
+          No hay inventario por ahora.
         </div>
       ) : (
         <div className="list-cards">
@@ -58,9 +58,9 @@ export default async function InventarioPage() {
             <div className="list-item" key={i}>
               <div className="row">
                 <div>
-                  <div className="title">{f.sku}</div>
+                  <div className="title">{f.descripcion}</div>
                   <div className="sub">
-                    {f.ubicacion} · {f.tipo}
+                    {f.ubicacion} · {f.estado}
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
@@ -68,13 +68,10 @@ export default async function InventarioPage() {
                   <EstadoBadge estado={f.calidad} />
                 </div>
               </div>
-              <div className="sub" style={{ marginTop: 8 }}>
-                Precio base: {money(f.precio)}
-              </div>
             </div>
           ))}
         </div>
       )}
-    </>
+    </main>
   );
 }
