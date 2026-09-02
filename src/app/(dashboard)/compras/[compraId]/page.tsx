@@ -1,127 +1,114 @@
-// Detalle de orden de producción: ejecutar (resultados por calidad) + empacar.
-// Muestra descripción larga (Producto / Color / Talla).
+// Detalle de compra + recepción (recibos parciales).
+// Muestra descripción larga (Producto / Color / Talla) en vez del SKU.
 import { createClient } from "@/lib/supabase/server";
-import { fecha } from "@/lib/format";
-import EjecutarForm from "./EjecutarForm";
-import EmpacarForm from "./EmpacarForm";
+import { money, fecha } from "@/lib/format";
+import RecepcionForm from "./RecepcionForm";
 
 export const dynamic = "force-dynamic";
 
 const estadoBadge: Record<string, string> = {
-  ABIERTA: "badge-warning",
-  EN_PROCESO: "badge-info",
-  CERRADA: "badge-success",
+  PENDIENTE: "badge-warning",
+  PARCIAL: "badge-info",
+  RECIBIDA: "badge-success",
   CANCELADA: "badge-muted",
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function descripcionVariante(v: any): string {
-  const prod = v?.productos?.nombre ?? v?.sku ?? "Producto";
-  const color = v?.colores?.nombre ?? "";
-  const talla = v?.tallas?.nombre ?? "";
-  return [prod, color, talla].filter(Boolean).join(" / ");
-}
-
-export default async function OrdenDetallePage({
+export default async function CompraDetallePage({
   params,
 }: {
-  params: { ordenId: string };
+  params: { compraId: string };
 }) {
   const supabase = createClient();
 
-  const { data: orden } = await supabase
-    .from("ordenes_produccion")
-    .select("id, numero, fecha_inicio, estado, procesos_produccion(nombre)")
-    .eq("id", params.ordenId)
+  const { data: compra } = await supabase
+    .from("compras")
+    .select("id, numero, fecha, estado, total, proveedores(nombre)")
+    .eq("id", params.compraId)
     .single();
 
-  if (!orden) {
+  const { data: detalle } = await supabase
+    .from("compras_detalle")
+    .select(
+      "id, cantidad_solicitada, cantidad_recibida, costo_unitario, " +
+        "variantes(sku, productos(nombre), colores(nombre), tallas(nombre))"
+    )
+    .eq("compra_id", params.compraId);
+
+  if (!compra) {
     return (
       <main>
-        <div className="empty-state"><span className="emoji">🏭</span>No se encontró la orden.</div>
+        <div className="empty-state"><span className="emoji">🛒</span>No se encontró la compra.</div>
       </main>
     );
   }
 
-  const { data: entradas } = await supabase
-    .from("ordenes_produccion_detalle")
-    .select("variante_id, cantidad, variantes(sku, productos(nombre), colores(nombre), tallas(nombre))")
-    .eq("orden_id", params.ordenId);
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const o: any = orden;
+  const c: any = compra;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const listaEntradas = (entradas ?? []).map((e: any) => ({
-    variante_id: e.variante_id,
-    descripcion: descripcionVariante(e.variantes),
-    cantidad: e.cantidad,
-  }));
+  const lineas: any[] = (detalle ?? []).map((d: any) => {
+    const prod = d.variantes?.productos?.nombre ?? d.variantes?.sku ?? "Producto";
+    const color = d.variantes?.colores?.nombre ?? "";
+    const talla = d.variantes?.tallas?.nombre ?? "";
+    return {
+      id: d.id,
+      descripcion: [prod, color, talla].filter(Boolean).join(" / "),
+      solicitada: d.cantidad_solicitada,
+      recibida: d.cantidad_recibida,
+      pendiente: d.cantidad_solicitada - d.cantidad_recibida,
+      costo: Number(d.costo_unitario),
+    };
+  });
 
-  const { data: central } = await supabase
-    .from("ubicaciones").select("id").eq("tipo", "CENTRAL").single();
-
-  const { data: term } = await supabase
-    .from("inventario")
-    .select("variante_id, calidad_id, cantidad, variantes(sku, productos(nombre), colores(nombre), tallas(nombre)), calidades(codigo), estados_inventario!inner(codigo)")
-    .eq("estados_inventario.codigo", "TERMINADO")
-    .gt("cantidad", 0);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const terminados = (term ?? []).map((r: any) => ({
-    variante_id: r.variante_id,
-    calidad_id: r.calidad_id,
-    descripcion: descripcionVariante(r.variantes),
-    calidad: r.calidades?.codigo ?? "-",
-    disponible: r.cantidad,
-  }));
-
-  const abierta = o.estado === "ABIERTA" || o.estado === "EN_PROCESO";
-  const totalEntradas = listaEntradas.reduce((s: number, e: { cantidad: number }) => s + e.cantidad, 0);
+  const puedeRecibir = c.estado === "PENDIENTE" || c.estado === "PARCIAL";
 
   return (
     <main>
-      <h1 style={{ marginBottom: 4 }}>Orden {o.numero}</h1>
+      <h1 style={{ marginBottom: 4 }}>Compra {c.numero}</h1>
       <p className="muted" style={{ marginTop: 0 }}>
-        <a href="/produccion">← Producción</a>
+        <a href="/compras">← Compras</a>
       </p>
 
       <div className="card">
         <div className="row">
           <div>
-            <div className="sub">Proceso</div>
-            <div className="title">{o.procesos_produccion?.nombre ?? "-"}</div>
-            <div className="sub">{fecha(o.fecha_inicio)}</div>
+            <div className="sub">Proveedor</div>
+            <div className="title">{c.proveedores?.nombre ?? "-"}</div>
+            <div className="sub">{fecha(c.fecha)}</div>
           </div>
-          <span className={`badge ${estadoBadge[o.estado] ?? "badge-muted"}`}>{o.estado}</span>
+          <div style={{ textAlign: "right" }}>
+            <div className="amount amount-lg">{money(Number(c.total))}</div>
+            <span className={`badge ${estadoBadge[c.estado] ?? "badge-muted"}`}>{c.estado}</span>
+          </div>
         </div>
       </div>
 
-      {/* Entradas */}
+      {/* Detalle */}
       <div className="card">
-        <h3 style={{ marginTop: 0 }}>Entradas (a producir)</h3>
+        <h3 style={{ marginTop: 0 }}>Detalle</h3>
         <div className="list-cards">
-          {listaEntradas.map((e: { variante_id: string; descripcion: string; cantidad: number }) => (
-            <div className="list-item" key={e.variante_id}>
+          {lineas.map((l) => (
+            <div className="list-item" key={l.id}>
               <div className="row">
-                <div className="title">{e.descripcion}</div>
-                <div className="amount">{e.cantidad}</div>
+                <div className="title">{l.descripcion}</div>
+                <div className="amount">{money(l.costo)}</div>
+              </div>
+              <div className="sub" style={{ marginTop: 6 }}>
+                Solicitado: {l.solicitada} · Recibido: {l.recibida} ·{" "}
+                <strong>Pendiente: {l.pendiente}</strong>
               </div>
             </div>
           ))}
         </div>
-        <p className="sub" style={{ marginTop: 8 }}>Total a producir: <strong>{totalEntradas}</strong></p>
       </div>
 
-      {/* Ejecutar */}
-      {abierta ? (
-        <EjecutarForm ordenId={o.id} entradas={listaEntradas} totalEntradas={totalEntradas} />
+      {/* Recepción */}
+      {puedeRecibir ? (
+        <RecepcionForm
+          compraId={c.id}
+          lineas={lineas.filter((l) => l.pendiente > 0)}
+        />
       ) : (
-        <div className="alert alert-success">Orden cerrada. Los productos están en TERMINADO. ✅</div>
-      )}
-
-      {/* Empacar */}
-      {terminados.length > 0 && central?.id && (
-        <EmpacarForm ubicacionId={central.id} terminados={terminados} />
+        <div className="alert alert-success">Esta compra ya fue recibida completamente. ✅</div>
       )}
     </main>
   );
