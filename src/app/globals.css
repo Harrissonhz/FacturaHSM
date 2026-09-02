@@ -559,3 +559,41 @@ h3 { font-size: 1.05rem; margin: 0 0 var(--space-2); }
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* ===== HOJA DE CONTEO DE INVENTARIO (agregar al final de globals.css) ===== */
+
+/* En pantalla: ocultar la hoja de conteo (solo se ve al imprimir) */
+.print-only { display: none; }
+
+/* Estilos de la hoja de conteo */
+#hoja-conteo .hc-header { margin-bottom: 12px; }
+#hoja-conteo h2 { margin: 0 0 6px; font-size: 1.2rem; color: #1e3a5f; }
+#hoja-conteo .hc-meta {
+  display: flex; justify-content: space-between; gap: 16px;
+  font-size: .85rem; color: #334155;
+}
+.hc-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.hc-table th, .hc-table td {
+  border: 1px solid #94a3b8;
+  padding: 5px 6px;
+  text-align: left;
+}
+.hc-table th { background: #e2e8f0; font-size: .72rem; text-transform: uppercase; }
+.hc-table th.num, .hc-table td.num { text-align: right; }
+.hc-table .hc-total td { font-weight: 700; background: #f1f5f9; }
+/* Celdas para escribir a mano: un poco más altas */
+.hc-table td:nth-child(8), .hc-table td:nth-child(9) { min-width: 70px; height: 22px; }
+.hc-nota { font-size: .78rem; color: #475569; margin-top: 12px; }
+
+/* ===== IMPRESIÓN ===== */
+@media print {
+  .no-print { display: none !important; }
+  .app-header, .bottom-nav, .side-nav, .offline-banner { display: none !important; }
+  body { background: #fff !important; }
+  .print-only { display: block !important; }
+  .app-content { padding: 0 !important; }
+  .hc-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Repetir el encabezado de la tabla en cada página impresa */
+  .hc-table thead { display: table-header-group; }
+  .hc-table tr { break-inside: avoid; }
+}

@@ -1,11 +1,23 @@
 // ---------------------------------------------------------------------
 // Pantalla de Inventario (Server Component).
-// Muestra la DESCRIPCIÓN LARGA (Producto / Color / Talla) en vez del SKU.
+// Muestra descripción larga y delega en InventarioClient la lista +
+// las opciones de descarga (PDF/Imprimir y CSV) para conteo físico.
 // ---------------------------------------------------------------------
 import { createClient } from "@/lib/supabase/server";
-import EstadoBadge from "@/components/EstadoBadge";
+import InventarioClient from "./InventarioClient";
 
 export const dynamic = "force-dynamic";
+
+export type FilaInv = {
+  descripcion: string;
+  producto: string;
+  color: string;
+  talla: string;
+  ubicacion: string;
+  estado: string;
+  calidad: string;
+  cantidad: number;
+};
 
 export default async function InventarioPage() {
   const supabase = createClient();
@@ -14,64 +26,37 @@ export default async function InventarioPage() {
     .from("inventario")
     .select(
       "cantidad, " +
-        "variantes(sku, productos(nombre), colores(nombre), tallas(nombre)), " +
-        "ubicaciones(nombre, tipo), calidades(codigo), estados_inventario!inner(codigo)"
+        "variantes(sku, productos(nombre), colores(nombre), tallas(nombre, orden)), " +
+        "ubicaciones(nombre, tipo), calidades(codigo), estados_inventario(codigo)"
     )
-    .gt("cantidad", 0)
-    .order("cantidad", { ascending: false });
-
-  type Fila = {
-    descripcion: string;
-    ubicacion: string;
-    estado: string;
-    calidad: string;
-    cantidad: number;
-  };
+    .gt("cantidad", 0);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const filas: Fila[] = (data ?? []).map((r: any) => {
-    const prod = r.variantes?.productos?.nombre ?? r.variantes?.sku ?? "Producto";
+  const filas: FilaInv[] = (data ?? []).map((r: any) => {
+    const producto = r.variantes?.productos?.nombre ?? r.variantes?.sku ?? "Producto";
     const color = r.variantes?.colores?.nombre ?? "";
     const talla = r.variantes?.tallas?.nombre ?? "";
     return {
-      descripcion: [prod, color, talla].filter(Boolean).join(" / "),
+      descripcion: [producto, color, talla].filter(Boolean).join(" / "),
+      producto,
+      color,
+      talla,
       ubicacion: r.ubicaciones?.nombre ?? "-",
       estado: r.estados_inventario?.codigo ?? "-",
       calidad: r.calidades?.codigo ?? "-",
       cantidad: r.cantidad,
     };
-  });
+  })
+  // Ordenar por producto, luego talla, luego color (más legible para conteo)
+  .sort((a, b) =>
+    a.producto.localeCompare(b.producto) ||
+    a.talla.localeCompare(b.talla) ||
+    a.color.localeCompare(b.color)
+  );
 
   return (
     <main>
-      <h1>Inventario</h1>
-      <p className="muted">Existencias por producto, ubicación, estado y calidad.</p>
-
-      {filas.length === 0 ? (
-        <div className="empty-state">
-          <span className="emoji">📦</span>
-          No hay inventario por ahora.
-        </div>
-      ) : (
-        <div className="list-cards">
-          {filas.map((f, i) => (
-            <div className="list-item" key={i}>
-              <div className="row">
-                <div>
-                  <div className="title">{f.descripcion}</div>
-                  <div className="sub">
-                    {f.ubicacion} · {f.estado}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div className="amount amount-lg">{f.cantidad}</div>
-                  <EstadoBadge estado={f.calidad} />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <InventarioClient filas={filas} />
     </main>
   );
 }
