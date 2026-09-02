@@ -1,11 +1,12 @@
 "use client";
 
 // Formulario de recepción (recibos parciales) -> sp_recibir_mercancia.
+// Muestra descripción larga (Producto / Color / Talla).
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { recibirMercancia } from "@/services/compras.actions";
 
-type Linea = { id: string; sku: string; pendiente: number };
+type Linea = { id: string; descripcion: string; pendiente: number };
 
 export default function RecepcionForm({
   compraId,
@@ -67,7 +68,7 @@ export default function RecepcionForm({
           <div className="list-item" key={l.id}>
             <div className="row">
               <div>
-                <div className="title">{l.sku}</div>
+                <div className="title">{l.descripcion}</div>
                 <div className="sub">Pendiente: {l.pendiente}</div>
               </div>
               <input

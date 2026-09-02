@@ -1,4 +1,4 @@
-// "Nueva orden de producción": carga procesos e inventario CRUDO disponible.
+// "Nueva orden de producción": procesos + inventario CRUDO (con descripción larga).
 import { createClient } from "@/lib/supabase/server";
 import NuevaOrdenForm from "./NuevaOrdenForm";
 
@@ -13,19 +13,27 @@ export default async function NuevaOrdenPage() {
     .eq("activo", true)
     .order("nombre");
 
-  // Inventario disponible en CRUDO (para elegir qué producir)
   const { data: inv } = await supabase
     .from("inventario")
-    .select("variante_id, cantidad, variantes(sku), estados_inventario!inner(codigo)")
+    .select(
+      "variante_id, cantidad, " +
+        "variantes(sku, productos(nombre), colores(nombre), tallas(nombre)), " +
+        "estados_inventario!inner(codigo)"
+    )
     .eq("estados_inventario.codigo", "CRUDO")
     .gt("cantidad", 0);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const crudos = (inv ?? []).map((r: any) => ({
-    variante_id: r.variante_id,
-    sku: r.variantes?.sku ?? "SKU",
-    disponible: r.cantidad,
-  }));
+  const crudos = (inv ?? []).map((r: any) => {
+    const prod = r.variantes?.productos?.nombre ?? r.variantes?.sku ?? "Producto";
+    const color = r.variantes?.colores?.nombre ?? "";
+    const talla = r.variantes?.tallas?.nombre ?? "";
+    return {
+      variante_id: r.variante_id,
+      descripcion: [prod, color, talla].filter(Boolean).join(" / "),
+      disponible: r.cantidad,
+    };
+  });
 
   return (
     <main>

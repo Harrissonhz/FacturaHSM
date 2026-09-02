@@ -1,13 +1,13 @@
 "use client";
 
-// Formulario de nueva orden de producción. Número AUTOMÁTICO (OP-XXXXXX).
+// Formulario de nueva orden de producción. Muestra descripción larga.
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { crearOrdenProduccion } from "@/services/produccion.actions";
 
 type Proceso = { id: string; nombre: string };
-type Crudo = { variante_id: string; sku: string; disponible: number };
-type Linea = { variante_id: string; sku: string; disponible: number; cantidad: number };
+type Crudo = { variante_id: string; descripcion: string; disponible: number };
+type Linea = { variante_id: string; descripcion: string; disponible: number; cantidad: number };
 
 export default function NuevaOrdenForm({
   procesos,
@@ -38,26 +38,16 @@ export default function NuevaOrdenForm({
 
   async function guardar() {
     setError(null);
-    if (!procesoId) {
-      setError("Selecciona un proceso.");
-      return;
-    }
-    if (lineas.length === 0) {
-      setError("Agrega al menos una unidad a producir.");
-      return;
-    }
+    if (!procesoId) { setError("Selecciona un proceso."); return; }
+    if (lineas.length === 0) { setError("Agrega al menos una unidad a producir."); return; }
     setLoading(true);
     const fd = new FormData();
     fd.set("proceso_id", procesoId);
     fd.set("entradas", JSON.stringify(lineas.map((l) => ({ variante_id: l.variante_id, cantidad: l.cantidad }))));
     const res = await crearOrdenProduccion(fd);
     setLoading(false);
-    if (res.ok) {
-      router.push("/produccion");
-      router.refresh();
-    } else {
-      setError(res.error ?? "No se pudo crear la orden.");
-    }
+    if (res.ok) { router.push("/produccion"); router.refresh(); }
+    else setError(res.error ?? "No se pudo crear la orden.");
   }
 
   return (
@@ -66,24 +56,20 @@ export default function NuevaOrdenForm({
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="proceso">Proceso *</label>
           <select id="proceso" className="select" value={procesoId} onChange={(e) => setProcesoId(e.target.value)}>
-            {procesos.map((p) => (
-              <option key={p.id} value={p.id}>{p.nombre}</option>
-            ))}
+            {procesos.map((p) => (<option key={p.id} value={p.id}>{p.nombre}</option>))}
           </select>
         </div>
-        <p className="sub" style={{ marginTop: 10, marginBottom: 0 }}>
-          El número de orden se asigna automáticamente (OP-XXXXXX).
-        </p>
+        <p className="sub" style={{ marginTop: 10, marginBottom: 0 }}>El número de orden se asigna automáticamente (OP-XXXXXX).</p>
       </div>
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Unidades a producir (desde CRUDO)</h3>
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
           <div className="field" style={{ flex: 1, marginBottom: 0 }}>
-            <label htmlFor="variante">Variante</label>
+            <label htmlFor="variante">Producto</label>
             <select id="variante" className="select" value={varSel} onChange={(e) => setVarSel(e.target.value)}>
               {crudos.map((c) => (
-                <option key={c.variante_id} value={c.variante_id}>{c.sku} (disp: {c.disponible})</option>
+                <option key={c.variante_id} value={c.variante_id}>{c.descripcion} (disp: {c.disponible})</option>
               ))}
             </select>
           </div>
@@ -96,7 +82,7 @@ export default function NuevaOrdenForm({
               <div className="list-item" key={l.variante_id}>
                 <div className="row">
                   <div>
-                    <div className="title">{l.sku}</div>
+                    <div className="title">{l.descripcion}</div>
                     <div className="sub">Disponible en CRUDO: {l.disponible}</div>
                   </div>
                   <button className="btn btn-danger btn-sm" onClick={() => quitar(l.variante_id)}>Quitar</button>

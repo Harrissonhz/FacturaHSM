@@ -1,6 +1,7 @@
 "use client";
 
 // Empaca unidades TERMINADAS -> LISTO (habilita la venta).
+// Muestra descripción larga (Producto / Color / Talla).
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { empacar } from "@/services/produccion.actions";
@@ -9,7 +10,7 @@ import EstadoBadge from "@/components/EstadoBadge";
 type Term = {
   variante_id: string;
   calidad_id: string;
-  sku: string;
+  descripcion: string;
   calidad: string;
   disponible: number;
 };
@@ -51,7 +52,7 @@ export default function EmpacarForm({
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Empacar (TERMINADO → LISTO)</h3>
       <p className="muted" style={{ marginTop: 0 }}>
-        Empaca para habilitar la venta. Solo lo LISTO puede distribuirse y venderse.
+        Empaca para habilitar la venta. Solo lo LISTO puede venderse.
       </p>
 
       {msg && (
@@ -65,7 +66,7 @@ export default function EmpacarForm({
             <div className="list-item" key={key}>
               <div className="row">
                 <div>
-                  <div className="title">{t.sku}</div>
+                  <div className="title">{t.descripcion}</div>
                   <div className="sub">Disponible: {t.disponible} · <EstadoBadge estado={t.calidad} /></div>
                 </div>
                 <input

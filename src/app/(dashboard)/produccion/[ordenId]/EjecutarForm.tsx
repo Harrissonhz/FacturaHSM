@@ -1,13 +1,13 @@
 "use client";
 
 // Cierra la orden registrando resultados por calidad (primera/segunda/merma).
-// Valida en cliente que el total cuadre con las entradas antes de enviar.
+// Muestra descripción larga (Producto / Color / Talla).
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ejecutarProduccion } from "@/services/produccion.actions";
 
-type Entrada = { variante_id: string; sku: string; cantidad: number };
-type Fila = { variante_id: string; sku: string; primera: number; segunda: number; merma: number };
+type Entrada = { variante_id: string; descripcion: string; cantidad: number };
+type Fila = { variante_id: string; descripcion: string; primera: number; segunda: number; merma: number };
 
 export default function EjecutarForm({
   ordenId,
@@ -20,7 +20,7 @@ export default function EjecutarForm({
 }) {
   const router = useRouter();
   const [filas, setFilas] = useState<Fila[]>(
-    entradas.map((e) => ({ variante_id: e.variante_id, sku: e.sku, primera: e.cantidad, segunda: 0, merma: 0 }))
+    entradas.map((e) => ({ variante_id: e.variante_id, descripcion: e.descripcion, primera: e.cantidad, segunda: 0, merma: 0 }))
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,9 +32,7 @@ export default function EjecutarForm({
   const cuadra = totalResultados === totalEntradas;
 
   function set(id: string, campo: "primera" | "segunda" | "merma", valor: number) {
-    setFilas((prev) =>
-      prev.map((f) => (f.variante_id === id ? { ...f, [campo]: Math.max(0, valor) } : f))
-    );
+    setFilas((prev) => prev.map((f) => (f.variante_id === id ? { ...f, [campo]: Math.max(0, valor) } : f)));
   }
 
   async function ejecutar() {
@@ -43,7 +41,6 @@ export default function EjecutarForm({
       setError(`El total de resultados (${totalResultados}) debe ser igual a lo que entró (${totalEntradas}).`);
       return;
     }
-    // Construir resultados con calidad_codigo
     const resultados: { variante_id: string; calidad_codigo: string; cantidad: number }[] = [];
     for (const f of filas) {
       if (f.primera > 0) resultados.push({ variante_id: f.variante_id, calidad_codigo: "PRIMERA", cantidad: f.primera });
@@ -57,11 +54,8 @@ export default function EjecutarForm({
     fd.set("resultados", JSON.stringify(resultados));
     const res = await ejecutarProduccion(fd);
     setLoading(false);
-    if (res.ok) {
-      router.refresh();
-    } else {
-      setError(res.error ?? "No se pudo cerrar la orden.");
-    }
+    if (res.ok) router.refresh();
+    else setError(res.error ?? "No se pudo cerrar la orden.");
   }
 
   return (
@@ -74,7 +68,7 @@ export default function EjecutarForm({
       <div className="list-cards">
         {filas.map((f) => (
           <div className="list-item" key={f.variante_id}>
-            <div className="title">{f.sku}</div>
+            <div className="title">{f.descripcion}</div>
             <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label>Primera</label>
@@ -98,7 +92,7 @@ export default function EjecutarForm({
 
       <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between" }}>
         <span className="muted">Total resultados</span>
-        <span className={cuadra ? "amount" : "amount"} style={{ color: cuadra ? "var(--color-success)" : "var(--color-danger)" }}>
+        <span className="amount" style={{ color: cuadra ? "var(--color-success)" : "var(--color-danger)" }}>
           {totalResultados} / {totalEntradas}
         </span>
       </div>
