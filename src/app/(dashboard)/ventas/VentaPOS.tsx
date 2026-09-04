@@ -3,11 +3,15 @@
 // ---------------------------------------------------------------------
 // POS de venta con SELECTOR EN CASCADA (Calidad → Producto[img] → Talla → Color).
 // Precio unitario editable por línea. Carrito multi-producto.
+// PLAZO DE CRÉDITO: 15 días.
 // ---------------------------------------------------------------------
 import { useState, useMemo } from "react";
 import { money } from "@/lib/format";
 import EstadoBadge from "@/components/EstadoBadge";
 import SelectorCascada, { type Unidad } from "@/components/SelectorCascada";
+
+// Plazo de crédito (días) para las ventas a crédito.
+const DIAS_CREDITO = 15;
 
 type Cliente = { id: string; nombre: string; municipio: string | null };
 type Item = {
@@ -82,7 +86,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
       const res = await fetch("/api/ventas", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          vendedor_id: vendedor.id, cliente_id: clienteId, tipo_pago: "CREDITO", dias_credito: 30, descuento: 0,
+          vendedor_id: vendedor.id, cliente_id: clienteId, tipo_pago: "CREDITO", dias_credito: DIAS_CREDITO, descuento: 0,
           items: carrito.map((l) => ({ variante_id: l.variante_id, calidad_id: l.calidad_id, cantidad: l.cantidad, precio_unitario: l.precio })),
         }),
       });
@@ -200,7 +204,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
           </div>
         )}
         <div style={{ marginTop: "var(--space-4)", display: "flex", justifyContent: "space-between", alignItems: "baseline", borderTop: "1px solid var(--color-border)", paddingTop: "var(--space-4)" }}>
-          <span className="muted">Total (crédito 30 días)</span>
+          <span className="muted">Total (crédito {DIAS_CREDITO} días)</span>
           <span className="amount amount-lg">{money(total)}</span>
         </div>
       </div>
