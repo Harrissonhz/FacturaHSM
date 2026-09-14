@@ -3,14 +3,13 @@
 // ---------------------------------------------------------------------
 // POS de venta con SELECTOR EN CASCADA (Calidad → Producto[img] → Talla → Color).
 // Precio unitario editable por línea. Carrito multi-producto.
-// PLAZO DE CRÉDITO: 15 días.
+// TIPO DE PAGO seleccionable (Crédito por defecto / Contado). Crédito a 15 días.
 // ---------------------------------------------------------------------
 import { useState, useMemo } from "react";
 import { money } from "@/lib/format";
 import EstadoBadge from "@/components/EstadoBadge";
 import SelectorCascada, { type Unidad } from "@/components/SelectorCascada";
 
-// Plazo de crédito (días) para las ventas a crédito.
 const DIAS_CREDITO = 15;
 
 type Cliente = { id: string; nombre: string; municipio: string | null };
@@ -34,6 +33,7 @@ type Props = {
 export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) {
   const [clientes, setClientes] = useState<Cliente[]>(clientesIniciales);
   const [clienteId, setClienteId] = useState<string>(clientesIniciales[0]?.id ?? "");
+  const [tipoPago, setTipoPago] = useState<"CREDITO" | "CONTADO">("CREDITO"); // Crédito por defecto
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
   const [carrito, setCarrito] = useState<LineaCarrito[]>([]);
   const [loading, setLoading] = useState(false);
@@ -52,6 +52,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
 
   const total = useMemo(() => carrito.reduce((s, l) => s + l.precio * l.cantidad, 0), [carrito]);
   const clienteSel = clientes.find((c) => c.id === clienteId);
+  const esCredito = tipoPago === "CREDITO";
 
   function agregarUnidad(u: Unidad) {
     const it = items.find((x) => x.key === u.key);
@@ -86,7 +87,11 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
       const res = await fetch("/api/ventas", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          vendedor_id: vendedor.id, cliente_id: clienteId, tipo_pago: "CREDITO", dias_credito: DIAS_CREDITO, descuento: 0,
+          vendedor_id: vendedor.id,
+          cliente_id: clienteId,
+          tipo_pago: tipoPago,
+          dias_credito: esCredito ? DIAS_CREDITO : 0,
+          descuento: 0,
           items: carrito.map((l) => ({ variante_id: l.variante_id, calidad_id: l.calidad_id, cantidad: l.cantidad, precio_unitario: l.precio })),
         }),
       });
@@ -125,7 +130,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
         <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
           <li>Factura: <strong>{resultado.numero_factura}</strong></li>
           <li>Total: <strong>{money(resultado.total)}</strong></li>
-          <li>Cuenta por cobrar: <strong>{resultado.cuenta_id ? "creada" : "-"}</strong></li>
+          <li>Cuenta por cobrar: <strong>{resultado.cuenta_id ? "creada" : "no aplica (contado)"}</strong></li>
         </ul>
         <div style={{ marginTop: "var(--space-4)", display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
           <a className="btn btn-accent" href={`/factura/${resultado.venta_id}`}>🧾 Ver factura</a>
@@ -138,12 +143,13 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
 
   return (
     <>
+      {/* Cliente + Tipo de pago */}
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3 style={{ margin: 0 }}>Cliente</h3>
           <button className="btn btn-secondary btn-sm" onClick={() => setShowNuevoCliente(true)}>+ Nuevo</button>
         </div>
-        <div className="field" style={{ marginTop: "var(--space-3)", marginBottom: 0 }}>
+        <div className="field" style={{ marginTop: "var(--space-3)", marginBottom: "var(--space-3)" }}>
           {clientes.length === 0 ? (
             <p className="muted" style={{ margin: 0 }}>No hay clientes. Toca “+ Nuevo”.</p>
           ) : (
@@ -152,9 +158,30 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
             </select>
           )}
         </div>
+
+        {/* Selector de tipo de pago (Crédito por defecto) */}
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label htmlFor="tipo_pago">Tipo de pago</label>
+          <select
+            id="tipo_pago"
+            className="select"
+            value={tipoPago}
+            onChange={(e) => setTipoPago(e.target.value as "CREDITO" | "CONTADO")}
+          >
+            <option value="CREDITO">Crédito ({DIAS_CREDITO} días)</option>
+            <option value="CONTADO">Contado</option>
+          </select>
+          <p className="sub" style={{ margin: "4px 0 0" }}>
+            {esCredito
+              ? `Se generará una cuenta por cobrar a ${DIAS_CREDITO} días.`
+              : "Pago inmediato: no genera cuenta por cobrar."}
+          </p>
+        </div>
+
         {clienteSel && <p className="sub" style={{ marginTop: "var(--space-2)", marginBottom: 0 }}>Vendedor: {vendedor.nombre}</p>}
       </div>
 
+      {/* Agregar productos */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Agregar productos</h3>
         {items.length === 0 ? (
@@ -164,6 +191,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
         )}
       </div>
 
+      {/* Carrito */}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Carrito ({carrito.length})</h3>
         {carrito.length === 0 ? (
@@ -204,7 +232,7 @@ export default function VentaPOS({ vendedor, clientesIniciales, items }: Props) 
           </div>
         )}
         <div style={{ marginTop: "var(--space-4)", display: "flex", justifyContent: "space-between", alignItems: "baseline", borderTop: "1px solid var(--color-border)", paddingTop: "var(--space-4)" }}>
-          <span className="muted">Total (crédito {DIAS_CREDITO} días)</span>
+          <span className="muted">Total ({esCredito ? `crédito ${DIAS_CREDITO} días` : "contado"})</span>
           <span className="amount amount-lg">{money(total)}</span>
         </div>
       </div>
