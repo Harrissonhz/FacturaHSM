@@ -30,6 +30,7 @@
 4. **`sp_anular_venta`:** estaba documentada pero no implementada → creada.
 5. **Fecha de cliente/vendedor en ventas:** el formulario de cliente no permitía editar/asignar vendedor → corregido; además se decidió que cualquier vendedor puede venderle a cualquier cliente.
 6. **Zona horaria:** operaciones después de las 7 PM se guardaban como del día siguiente (UTC vs Colombia) → fix en frontend (`format.ts` con America/Bogota) y en RPC (fecha con `now() at time zone 'America/Bogota'`).
+7. **Descripción vs SKU:** el cliente veía códigos (`BD-LIL-SM`) → se cambió por descripción larga ("Producto / Color / Talla") en factura, inventario, ajuste, recepción de compras y producción.
 
 ## Requerimientos del usuario (pruebas)
 - **Ocultar Distribución/Retorno** y usar **inventario central compartido** (2 hermanos, un solo inventario). Cambio en `sp_registrar_venta` (descuenta de CENTRAL) y en Ventas (lee CENTRAL).
@@ -42,10 +43,15 @@
 - **Imágenes de producto** en el selector (`productos.imagen_url`, fotos en `public/productos/`).
 - **Logo real** de HSM Family Sport en factura, estado de cuenta, iconos PWA, favicon y login.
 - **Reporte de cartera avanzado** (filtros, agrupación, aging, KPIs, export).
+- **Plazo de crédito a 15 días** (antes 30) en la venta y la cartera.
+- **Tipo de pago seleccionable** en la venta (Crédito por defecto / Contado).
+- **Hoja de conteo de inventario** imprimible (PDF) + export CSV, para conteo físico previo al ajuste.
 
 ## Datos y operación
 - Script de **limpieza/RESET** para dejar la base lista antes de operar en vivo.
 - Usuario admin de producción creado y enlazado al tenant.
+- **Creación del catálogo real:** 4 productos, 15 colores, 9 tallas y 106 variantes con precios (`crear_productos_HSM_con_precios.sql`).
+- **Carga del inventario inicial:** 539 unidades en CENTRAL/LISTO/PRIMERA, con movimientos de trazabilidad (`docs/CargarInventarioInicial.sql`). Ver documento `16-carga-inventario-inicial.md`. Incluyó la creación de la variante `CH-CAQ-L` (Camisa Hombre / Caqui / L).
 
 ## Estado actual
-MVP funcional en producción. Pendientes post-MVP: roles finos (7.3) y auditoría (7.4). Distribución/Retorno conservados pero ocultos (reactivables).
+MVP funcional en producción, con catálogo e inventario reales cargados. Pendientes post-MVP: roles finos (7.3) y auditoría (7.4). Distribución/Retorno conservados pero ocultos (reactivables).
